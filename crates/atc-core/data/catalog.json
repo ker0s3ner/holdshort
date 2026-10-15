@@ -188,5 +188,20 @@
     "icao": "RJTT",
     "name": "Tokyo Haneda Airport",
     "region": "Japan"
+  },
+  {
+    "icao": "EYPA",
+    "name": "Palanga International Airport",
+    "region": "Lithuania"
+  },
+  {
+    "icao": "EYSA",
+    "name": "Šiauliai International Airport",
+    "region": "Lithuania"
+  },
+  {
+    "icao": "EYSB",
+    "name": "Barysiai Airfield",
+    "region": "Lithuania"
   }
 ]

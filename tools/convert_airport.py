@@ -88,8 +88,10 @@ def main(src_path, icao, name, out_path):
         t = w.get("tags", {})
         aeroway = t.get("aeroway")
         if aeroway == "runway":
-            add_edges_for_way(w, "runway", t.get("ref", ""))
-            ref = t.get("ref", "")
+            # Some runways carry their "09/27"-style identifier under
+            # `name` instead of `ref` - accept either.
+            ref = t.get("ref") or t.get("name") or ""
+            add_edges_for_way(w, "runway", ref)
             meta = runway_meta.setdefault(ref, {"width": parse_width(t.get("width")), "surface": t.get("surface"), "segments": []})
             meta["segments"].append([n for n in w["nodes"] if n in nodes])
         elif aeroway in ("taxiway", "taxilane"):
@@ -190,6 +192,82 @@ def main(src_path, icao, name, out_path):
                 })
 
     pruned_nodes = {nid: out_nodes[nid] for nid in out_nodes if int(nid) in used_node_ids}
+
+    # Plenty of real airports (especially smaller/regional ones) have an
+    # apron mapped in OSM but never got individual parking_position stands
+    # tagged within it. Rather than ship a surface with taxiways and no
+    # gates at all - which the sim can't spawn traffic into - synthesize
+    # evenly-spaced stands around each apron's perimeter and link each one
+    # back to the nearest real taxiway/runway node.
+    if not parking:
+        taxiway_node_ids = list(pruned_nodes.keys())
+        apron_polys = [a for a in areas if a["kind"] == "apron"]
+        synthetic_id = 0
+        for poly in apron_polys:
+            pts = poly["points"]
+            n = len(pts)
+            if n < 3 or not taxiway_node_ids:
+                continue
+            perimeter = sum(
+                math.hypot(pts[(i + 1) % n][0] - pts[i][0], pts[(i + 1) % n][1] - pts[i][1])
+                for i in range(n)
+            )
+            spacing = 35.0
+            count = max(0, min(10, int(perimeter / spacing)))
+            if count < 2:
+                continue
+            cx = sum(p[0] for p in pts) / n
+            cy = sum(p[1] for p in pts) / n
+            for k in range(count):
+                target = (k / count) * perimeter
+                acc = 0.0
+                px, py = pts[0]
+                for i in range(n):
+                    ax, ay = pts[i]
+                    bx, by = pts[(i + 1) % n]
+                    seg = math.hypot(bx - ax, by - ay)
+                    if seg > 0 and (acc + seg >= target or i == n - 1):
+                        frac = max(0.0, min(1.0, (target - acc) / seg))
+                        px, py = ax + (bx - ax) * frac, ay + (by - ay) * frac
+                        break
+                    acc += seg
+                dirx, diry = cx - px, cy - py
+                dlen = math.hypot(dirx, diry) or 1
+                px += dirx / dlen * 5.0
+                py += diry / dlen * 5.0
+
+                synthetic_id += 1
+                sid = f"synstand{synthetic_id}"
+                local_y = py / R * (180 / math.pi)
+                local_x = px / (R * math.cos(math.radians(ref_lat))) * (180 / math.pi)
+                pruned_nodes[sid] = {
+                    "id": sid,
+                    "lat": ref_lat + local_y,
+                    "lon": ref_lon + local_x,
+                    "x": round(px, 2),
+                    "y": round(py, 2),
+                }
+                best, best_d = None, None
+                for nid in taxiway_node_ids:
+                    node = pruned_nodes[nid]
+                    d = math.hypot(node["x"] - px, node["y"] - py)
+                    if best_d is None or d < best_d:
+                        best, best_d = nid, d
+                if best is not None:
+                    edges.append({
+                        "id": f"synlink{synthetic_id}",
+                        "from": sid,
+                        "to": best,
+                        "kind": "gate_link",
+                        "ref": "",
+                        "length_m": round(best_d, 2),
+                    })
+                parking.append({
+                    "id": sid,
+                    "ref": f"STAND {synthetic_id}",
+                    "node": sid,
+                    "parking_type": "gate",
+                })
 
     # Some OSM parking_position points sit directly on a taxiway/taxilane
     # centerline node rather than offset into the actual stand - this makes

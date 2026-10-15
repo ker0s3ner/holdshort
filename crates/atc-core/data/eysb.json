@@ -1,0 +1,404 @@
+{
+  "icao": "EYSB",
+  "name": "Barysiai Airfield",
+  "reference_point": {
+    "lat": 56.0707691,
+    "lon": 23.556519766666668
+  },
+  "attribution": "Surface layout derived from OpenStreetMap contributors data, ODbL.",
+  "nodes": [
+    {
+      "id": "1124799420",
+      "lat": 56.0697589,
+      "lon": 23.5527088,
+      "x": -236.79,
+      "y": -112.45
+    },
+    {
+      "id": "1124799970",
+      "lat": 56.0691902,
+      "lon": 23.5689979,
+      "x": 775.33,
+      "y": -175.76
+    },
+    {
+      "id": "1124800501",
+      "lat": 56.0711813,
+      "lon": 23.553262,
+      "x": -202.42,
+      "y": 45.89
+    },
+    {
+      "id": "1124800608",
+      "lat": 56.0719358,
+      "lon": 23.5472994,
+      "x": -572.91,
+      "y": 129.88
+    },
+    {
+      "id": "synstand1",
+      "lat": 56.06963708161285,
+      "lon": 23.556086808908685,
+      "x": -26.9,
+      "y": -126.02
+    },
+    {
+      "id": "synstand2",
+      "lat": 56.070012141987355,
+      "lon": 23.554656429232768,
+      "x": -115.78,
+      "y": -84.26
+    },
+    {
+      "id": "synstand3",
+      "lat": 56.07008272374773,
+      "lon": 23.553012147216446,
+      "x": -217.95,
+      "y": -76.41
+    },
+    {
+      "id": "synstand4",
+      "lat": 56.069733960182994,
+      "lon": 23.55450807313654,
+      "x": -125.0,
+      "y": -115.23
+    },
+    {
+      "id": "synstand5",
+      "lat": 56.06946542681331,
+      "lon": 23.55537807518582,
+      "x": -70.94,
+      "y": -145.12
+    },
+    {
+      "id": "synstand6",
+      "lat": 56.06966665298373,
+      "lon": 23.553594547094498,
+      "x": -181.76,
+      "y": -122.72
+    },
+    {
+      "id": "synstand7",
+      "lat": 56.06982718114155,
+      "lon": 23.551752114139934,
+      "x": -296.24,
+      "y": -104.85
+    },
+    {
+      "id": "synstand8",
+      "lat": 56.06933486187437,
+      "lon": 23.552613754252054,
+      "x": -242.7,
+      "y": -159.66
+    },
+    {
+      "id": "synstand9",
+      "lat": 56.06909965665055,
+      "lon": 23.554364492884922,
+      "x": -133.92,
+      "y": -185.84
+    },
+    {
+      "id": "synstand10",
+      "lat": 56.0686260546287,
+      "lon": 23.55564595973883,
+      "x": -54.29,
+      "y": -238.56
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "1124800608",
+      "to": "1124800501",
+      "kind": "runway",
+      "ref": "09/27",
+      "length_m": 379.89
+    },
+    {
+      "id": "e2",
+      "from": "1124800501",
+      "to": "1124799970",
+      "kind": "runway",
+      "ref": "09/27",
+      "length_m": 1002.56
+    },
+    {
+      "id": "e3",
+      "from": "1124799420",
+      "to": "1124800501",
+      "kind": "taxiway",
+      "ref": "",
+      "length_m": 162.03
+    },
+    {
+      "id": "synlink1",
+      "from": "synstand1",
+      "to": "1124799420",
+      "kind": "gate_link",
+      "ref": "",
+      "length_m": 210.33
+    },
+    {
+      "id": "synlink2",
+      "from": "synstand2",
+      "to": "1124799420",
+      "kind": "gate_link",
+      "ref": "",
+      "length_m": 124.25
+    },
+    {
+      "id": "synlink3",
+      "from": "synstand3",
+      "to": "1124799420",
+      "kind": "gate_link",
+      "ref": "",
+      "length_m": 40.67
+    },
+    {
+      "id": "synlink4",
+      "from": "synstand4",
+      "to": "1124799420",
+      "kind": "gate_link",
+      "ref": "",
+      "length_m": 111.83
+    },
+    {
+      "id": "synlink5",
+      "from": "synstand5",
+      "to": "1124799420",
+      "kind": "gate_link",
+      "ref": "",
+      "length_m": 169.04
+    },
+    {
+      "id": "synlink6",
+      "from": "synstand6",
+      "to": "1124799420",
+      "kind": "gate_link",
+      "ref": "",
+      "length_m": 55.98
+    },
+    {
+      "id": "synlink7",
+      "from": "synstand7",
+      "to": "1124799420",
+      "kind": "gate_link",
+      "ref": "",
+      "length_m": 59.93
+    },
+    {
+      "id": "synlink8",
+      "from": "synstand8",
+      "to": "1124799420",
+      "kind": "gate_link",
+      "ref": "",
+      "length_m": 47.58
+    },
+    {
+      "id": "synlink9",
+      "from": "synstand9",
+      "to": "1124799420",
+      "kind": "gate_link",
+      "ref": "",
+      "length_m": 126.37
+    },
+    {
+      "id": "synlink10",
+      "from": "synstand10",
+      "to": "1124799420",
+      "kind": "gate_link",
+      "ref": "",
+      "length_m": 221.83
+    }
+  ],
+  "runways": [
+    {
+      "ref": "09/27",
+      "ends": [
+        "09",
+        "27"
+      ],
+      "width_m": 30.0,
+      "surface": "asphalt",
+      "node_start": "1124800608",
+      "node_end": "1124799970",
+      "heading_deg": 102.8
+    }
+  ],
+  "parking_positions": [
+    {
+      "id": "synstand1",
+      "ref": "STAND 1",
+      "node": "synstand1",
+      "parking_type": "gate"
+    },
+    {
+      "id": "synstand2",
+      "ref": "STAND 2",
+      "node": "synstand2",
+      "parking_type": "gate"
+    },
+    {
+      "id": "synstand3",
+      "ref": "STAND 3",
+      "node": "synstand3",
+      "parking_type": "gate"
+    },
+    {
+      "id": "synstand4",
+      "ref": "STAND 4",
+      "node": "synstand4",
+      "parking_type": "gate"
+    },
+    {
+      "id": "synstand5",
+      "ref": "STAND 5",
+      "node": "synstand5",
+      "parking_type": "gate"
+    },
+    {
+      "id": "synstand6",
+      "ref": "STAND 6",
+      "node": "synstand6",
+      "parking_type": "gate"
+    },
+    {
+      "id": "synstand7",
+      "ref": "STAND 7",
+      "node": "synstand7",
+      "parking_type": "gate"
+    },
+    {
+      "id": "synstand8",
+      "ref": "STAND 8",
+      "node": "synstand8",
+      "parking_type": "gate"
+    },
+    {
+      "id": "synstand9",
+      "ref": "STAND 9",
+      "node": "synstand9",
+      "parking_type": "gate"
+    },
+    {
+      "id": "synstand10",
+      "ref": "STAND 10",
+      "node": "synstand10",
+      "parking_type": "gate"
+    }
+  ],
+  "areas": [
+    {
+      "kind": "apron",
+      "points": [
+        [
+          -21.92,
+          -125.59
+        ],
+        [
+          -45.8,
+          -120.44
+        ],
+        [
+          -40.48,
+          -95.81
+        ],
+        [
+          -218.25,
+          -57.46
+        ],
+        [
+          -225.21,
+          -89.72
+        ],
+        [
+          -41.12,
+          -129.43
+        ],
+        [
+          -45.56,
+          -150.03
+        ],
+        [
+          -186.07,
+          -119.71
+        ],
+        [
+          -186.83,
+          -123.24
+        ],
+        [
+          -236.79,
+          -112.45
+        ],
+        [
+          -285.16,
+          -102.02
+        ],
+        [
+          -286.23,
+          -106.98
+        ],
+        [
+          -308.31,
+          -102.21
+        ],
+        [
+          -317.71,
+          -145.76
+        ],
+        [
+          -197.69,
+          -171.65
+        ],
+        [
+          -198.66,
+          -176.13
+        ],
+        [
+          -73.11,
+          -203.22
+        ],
+        [
+          -80.14,
+          -235.82
+        ],
+        [
+          -47.23,
+          -242.92
+        ],
+        [
+          -21.92,
+          -125.59
+        ]
+      ]
+    },
+    {
+      "kind": "hangar",
+      "points": [
+        [
+          -118.0,
+          -229.34
+        ],
+        [
+          -112.34,
+          -205.22
+        ],
+        [
+          -77.7,
+          -213.35
+        ],
+        [
+          -83.37,
+          -237.48
+        ],
+        [
+          -118.0,
+          -229.34
+        ]
+      ]
+    }
+  ],
+  "towers": []
+}
