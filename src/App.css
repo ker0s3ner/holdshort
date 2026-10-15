@@ -178,6 +178,29 @@ html, body, #root {
   letter-spacing: 0.08em;
   border-bottom: 1px solid #1c2b22;
   color: #9adbb6;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.mic-button {
+  background: #16241c;
+  border: 1px solid #2a3f33;
+  border-radius: 4px;
+  color: #9adbb6;
+  font-size: 11px;
+  padding: 3px 8px;
+  cursor: pointer;
+}
+
+.mic-button.recording {
+  background: #4a1414;
+  border-color: #a33;
+  color: #ffb3b3;
+}
+
+.heard-line {
+  padding: 4px 12px 0;
 }
 
 .aircraft-list,

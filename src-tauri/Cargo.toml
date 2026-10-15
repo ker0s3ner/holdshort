@@ -27,3 +27,4 @@ atc-core = { path = "../crates/atc-core" }
 tauri-plugin-updater = "2.14.0"
 tauri-plugin-process = "2.4.0"
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
+base64 = "0.22"

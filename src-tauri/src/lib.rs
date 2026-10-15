@@ -186,6 +186,64 @@ async fn ask_ai(prompt: String, model: Option<String>) -> Result<String, String>
     Ok(parsed.response.trim().to_string())
 }
 
+/// Transcribes a 16-bit PCM WAV recording (base64-encoded, built client-side
+/// from the mic via Web Audio) using a local whisper.cpp install. There's no
+/// bundled model or binary - WKWebView can't run browser speech recognition,
+/// and shipping a speech model in the app would be enormous, so this shells
+/// out to whatever the user has installed and says exactly what to install
+/// if it isn't there yet.
+#[tauri::command]
+async fn transcribe_audio(wav_base64: String, model_path: Option<String>) -> Result<String, String> {
+    use base64::Engine;
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(wav_base64)
+        .map_err(|e| format!("couldn't decode recorded audio: {e}"))?;
+
+    let model = model_path.unwrap_or_else(|| {
+        format!(
+            "{}/.cache/whisper/ggml-base.en.bin",
+            std::env::var("HOME").unwrap_or_default()
+        )
+    });
+    if !std::path::Path::new(&model).exists() {
+        return Err(format!(
+            "No whisper model found at {model}. Install whisper.cpp with `brew install \
+             whisper-cpp`, then download a model, e.g. `curl -L -o {model} \
+             https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin` \
+             (create the ~/.cache/whisper folder first), or set a custom model path in Settings."
+        ));
+    }
+
+    let nonce = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    let wav_path = std::env::temp_dir().join(format!("holdshort-stt-{nonce}.wav"));
+    std::fs::write(&wav_path, &bytes).map_err(|e| format!("couldn't write temp audio: {e}"))?;
+
+    let output = std::process::Command::new("whisper-cli")
+        .args(["-m", &model, "-f", wav_path.to_string_lossy().as_ref(), "-nt", "-np"])
+        .output();
+    let _ = std::fs::remove_file(&wav_path);
+
+    let output = output.map_err(|_| {
+        "Couldn't run `whisper-cli` - install whisper.cpp with `brew install whisper-cpp` \
+         and make sure it's on your PATH."
+            .to_string()
+    })?;
+    if !output.status.success() {
+        return Err(format!(
+            "whisper-cli failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        ));
+    }
+    let text = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if text.is_empty() {
+        return Err("heard nothing".to_string());
+    }
+    Ok(text)
+}
+
 fn build_snapshot(sim: &Simulation) -> SimTick {
     let aircraft = sim
         .aircraft
@@ -289,7 +347,8 @@ pub fn run() {
             issue_clearance,
             set_speaking,
             get_metar,
-            ask_ai
+            ask_ai,
+            transcribe_audio
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

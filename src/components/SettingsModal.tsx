@@ -1,10 +1,18 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Modal } from "./Modal";
 import {
   getOllamaModel,
+  getTtsRate,
+  getTtsVoiceName,
+  getWhisperModelPath,
   isReadbackEnabled,
+  isSttEnabled,
   setOllamaModel,
   setReadbackEnabled,
+  setSttEnabled,
+  setTtsRate,
+  setTtsVoiceName,
+  setWhisperModelPath,
 } from "../voiceSettings";
 
 interface Props {
@@ -17,6 +25,18 @@ interface Props {
 export function SettingsModal({ onClose }: Props) {
   const [readback, setReadback] = useState(isReadbackEnabled());
   const [model, setModel] = useState(getOllamaModel());
+  const [ttsVoice, setTtsVoice] = useState(getTtsVoiceName());
+  const [ttsRate, setTtsRateState] = useState(getTtsRate());
+  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const [sttEnabled, setSttEnabledState] = useState(isSttEnabled());
+  const [whisperModel, setWhisperModelState] = useState(getWhisperModelPath());
+
+  useEffect(() => {
+    if (!("speechSynthesis" in window)) return;
+    const load = () => setVoices(window.speechSynthesis.getVoices());
+    load();
+    window.speechSynthesis.onvoiceschanged = load;
+  }, []);
 
   return (
     <Modal title="Settings" onClose={onClose}>
@@ -29,8 +49,9 @@ export function SettingsModal({ onClose }: Props) {
         <span className="muted">GitHub Releases (auto-update on launch)</span>
       </div>
 
+      <p className="panel-subheader">Text-to-speech (pilot readbacks)</p>
       <div className="settings-row">
-        <span>AI pilot readback (TTS)</span>
+        <span>AI pilot readback</span>
         <input
           type="checkbox"
           checked={readback}
@@ -51,6 +72,38 @@ export function SettingsModal({ onClose }: Props) {
           }}
         />
       </label>
+      <label className="field-label">
+        Voice
+        <select
+          value={ttsVoice}
+          onChange={(e) => {
+            setTtsVoice(e.target.value);
+            setTtsVoiceName(e.target.value);
+          }}
+        >
+          <option value="">System default</option>
+          {voices.map((v) => (
+            <option key={v.name} value={v.name}>
+              {v.name} ({v.lang})
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="field-label">
+        Speech rate ({ttsRate.toFixed(2)}x)
+        <input
+          type="range"
+          min={0.5}
+          max={2}
+          step={0.05}
+          value={ttsRate}
+          onChange={(e) => {
+            const rate = Number(e.target.value);
+            setTtsRateState(rate);
+            setTtsRate(rate);
+          }}
+        />
+      </label>
       <p className="muted settings-note">
         Readback speech uses your Mac's built-in text-to-speech. If a local{" "}
         <a href="https://ollama.com" target="_blank" rel="noreferrer">
@@ -59,10 +112,44 @@ export function SettingsModal({ onClose }: Props) {
         instance with the model above is running, readbacks are phrased by it; otherwise a
         standard template readback is used instead.
       </p>
+
+      <p className="panel-subheader">Speech-to-text (talking to ATC)</p>
+      <div className="settings-row">
+        <span>Enable push-to-talk (experimental)</span>
+        <input
+          type="checkbox"
+          checked={sttEnabled}
+          onChange={(e) => {
+            setSttEnabledState(e.target.checked);
+            setSttEnabled(e.target.checked);
+          }}
+        />
+      </div>
+      <label className="field-label">
+        Whisper model path (optional override)
+        <input
+          type="text"
+          placeholder="~/.cache/whisper/ggml-base.en.bin"
+          value={whisperModel}
+          onChange={(e) => {
+            setWhisperModelState(e.target.value);
+            setWhisperModelPath(e.target.value);
+          }}
+        />
+      </label>
       <p className="muted settings-note">
-        Speech-to-text (talking to ATC by voice) isn't available yet — macOS's embedded web view
-        doesn't support browser speech recognition, so this needs a native audio pipeline, which
-        is planned but not built.
+        macOS's embedded web view can't run browser speech recognition, so this uses a real local
+        engine instead:{" "}
+        <a href="https://github.com/ggml-org/whisper.cpp" target="_blank" rel="noreferrer">
+          whisper.cpp
+        </a>
+        . Install it with <code>brew install whisper-cpp</code>, then download a model, e.g.{" "}
+        <code>
+          mkdir -p ~/.cache/whisper &amp;&amp; curl -L -o ~/.cache/whisper/ggml-base.en.bin
+          https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin
+        </code>
+        . Once enabled, hold the mic button in the clearance panel to talk - what it hears shows
+        up as text, it isn't parsed into clearances yet.
       </p>
     </Modal>
   );

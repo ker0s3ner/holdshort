@@ -1,5 +1,8 @@
+import { useState } from "react";
 import type { AircraftSnapshot, AirportData, Clearance, ControllerRole } from "../types";
 import { frequencyFor } from "../frequencies";
+import { startListening, stopListeningAndTranscribe } from "../stt";
+import { isSttEnabled } from "../voiceSettings";
 
 interface Props {
   airport: AirportData;
@@ -60,16 +63,49 @@ export function ClearancePanel({
   const buttons = BUTTONS_BY_ROLE[role];
   const held = aircraft.filter((a) => HELD_STATES.has(a.state));
 
+  const [recording, setRecording] = useState(false);
+  const [heard, setHeard] = useState<string | null>(null);
+
   const issue = (clearance: Clearance) => {
     if (!selectedCallsign) return;
     onIssue(selectedCallsign, clearance);
+  };
+
+  const toggleMic = async () => {
+    if (!recording) {
+      setHeard(null);
+      try {
+        await startListening();
+        setRecording(true);
+      } catch (e) {
+        setHeard(`mic error: ${e}`);
+      }
+      return;
+    }
+    setRecording(false);
+    try {
+      const text = await stopListeningAndTranscribe();
+      setHeard(text);
+    } catch (e) {
+      setHeard(`${e}`);
+    }
   };
 
   return (
     <div className="clearance-panel">
       <div className="panel-header">
         {airport.icao} {role.toUpperCase()}
+        {isSttEnabled() && (
+          <button
+            className={recording ? "mic-button recording" : "mic-button"}
+            onClick={toggleMic}
+            title={recording ? "Stop and transcribe" : "Push to talk"}
+          >
+            {recording ? "● rec" : "🎙"}
+          </button>
+        )}
       </div>
+      {heard && <div className="muted settings-note heard-line">Heard: "{heard}"</div>}
 
       <div className="freq-strip">
         <div className="freq-row freq-own">
