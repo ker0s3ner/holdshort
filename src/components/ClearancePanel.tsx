@@ -91,7 +91,7 @@ export function ClearancePanel({
     } catch (e) {
       if (`${e}`.includes("NotAllowedError")) {
         setHeard(
-          'mic permission denied - open Settings → "Open System Settings" next to Microphone access, turn Holdshort on, then try again'
+          "mic permission denied - if Holdshort isn't even listed in System Settings → Microphone, use \"Reset Permission\" in Settings, then fully quit (⌘Q) and reopen the app"
         );
       } else {
         setHeard(`mic error: ${e}`);

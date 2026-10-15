@@ -355,6 +355,30 @@ async fn download_whisper_model() -> Result<(), String> {
     Ok(())
 }
 
+/// Wipes any cached TCC decision for this app's mic access and re-adds it
+/// to the request list that `open_microphone_settings` opens. Ad-hoc
+/// signed builds (no paid Apple Developer account for this project) get a
+/// different code signature every single build, and macOS's TCC daemon
+/// keys permission decisions to that signature - so an app that asked for
+/// the mic before a rebuild can end up with a stuck, invisible denial that
+/// never shows in the Microphone list at all and silently rejects every
+/// future request. `tccutil reset` clears that stuck state so the very
+/// next getUserMedia() call prompts fresh, like a first launch - but only
+/// after the app is fully quit and reopened, since the already-running
+/// process has its own in-memory copy of the old decision.
+#[tauri::command]
+fn reset_microphone_permission(app: tauri::AppHandle) -> Result<(), String> {
+    let identifier = app.config().identifier.clone();
+    let output = std::process::Command::new("tccutil")
+        .args(["reset", "Microphone", &identifier])
+        .output()
+        .map_err(|e| format!("couldn't run tccutil: {e}"))?;
+    if !output.status.success() {
+        return Err(String::from_utf8_lossy(&output.stderr).trim().to_string());
+    }
+    Ok(())
+}
+
 /// Opens System Settings straight to the Microphone privacy pane. Once the
 /// user has denied the mic prompt (or it never fired), there's no API to
 /// re-ask from inside the app - macOS only lets the user flip it back on
@@ -567,7 +591,8 @@ pub fn run() {
             install_ollama,
             pull_ollama_model,
             refresh_launch_services,
-            open_microphone_settings
+            open_microphone_settings,
+            reset_microphone_permission
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

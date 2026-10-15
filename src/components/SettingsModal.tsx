@@ -42,6 +42,7 @@ export function SettingsModal({ onClose, onRerunSetup }: Props) {
   const [pttKey, setPttKeyState] = useState(getPttKey());
   const [recordingKey, setRecordingKey] = useState(false);
   const [version, setVersion] = useState("");
+  const [micResetState, setMicResetState] = useState<"idle" | "resetting" | "done">("idle");
 
   useEffect(() => {
     if (!("speechSynthesis" in window)) return;
@@ -172,11 +173,35 @@ export function SettingsModal({ onClose, onRerunSetup }: Props) {
           Open System Settings
         </button>
       </div>
+      <div className="settings-row">
+        <span>Holdshort not listed there at all?</span>
+        <button
+          disabled={micResetState === "resetting"}
+          onClick={async () => {
+            setMicResetState("resetting");
+            try {
+              await invoke("reset_microphone_permission");
+              setMicResetState("done");
+            } catch (e) {
+              setMicResetState("idle");
+              alert(`Couldn't reset: ${e}`);
+            }
+          }}
+        >
+          {micResetState === "resetting"
+            ? "Resetting…"
+            : micResetState === "done"
+              ? "Done - now quit & reopen"
+              : "Reset Permission"}
+        </button>
+      </div>
       <p className="muted settings-note">
-        If push-to-talk says "permission denied" or "NotAllowedError", macOS has the mic blocked
-        for Holdshort - the button above jumps straight to System Settings → Privacy &amp;
-        Security → Microphone. Turn Holdshort on there, then try again (no relaunch needed unless
-        it was never listed at all, in which case relaunch once so macOS adds it to the list).
+        If push-to-talk says "permission denied" or Holdshort simply isn't in the Microphone list
+        in System Settings at all, that's a known quirk of this app not being signed with a paid
+        Apple Developer certificate - macOS can end up with a stuck, invisible denial that never
+        shows up to toggle back on. "Reset Permission" clears that. After it finishes, fully quit
+        Holdshort (⌘Q, not just closing the window) and reopen it - the next time push-to-talk
+        runs, macOS should prompt for mic access like a first launch.
       </p>
       <label className="field-label">
         Input device
