@@ -191,14 +191,31 @@ struct SetupStatus {
     brew_installed: bool,
     whisper_installed: bool,
     whisper_model_present: bool,
+    ollama_installed: bool,
+    ollama_model_present: bool,
 }
 
-fn on_path(cmd: &str) -> bool {
+/// A GUI-launched app (double-clicked from Finder or the Dock, which is how
+/// the packaged .app actually runs) gets macOS's bare default PATH -
+/// `/usr/bin:/bin:/usr/sbin:/sbin` - not the user's shell PATH from
+/// .zshrc, so Homebrew's own bin directory is invisible even though `which
+/// brew` finds it fine in a Terminal. Check Homebrew's two standard install
+/// locations directly before falling back to a PATH-based `which`, which is
+/// what actually works when this runs from `cargo tauri dev` in a terminal.
+fn find_executable(name: &str) -> Option<String> {
+    for dir in ["/opt/homebrew/bin", "/usr/local/bin"] {
+        let path = format!("{dir}/{name}");
+        if std::path::Path::new(&path).exists() {
+            return Some(path);
+        }
+    }
     std::process::Command::new("which")
-        .arg(cmd)
+        .arg(name)
         .output()
-        .map(|o| o.status.success())
-        .unwrap_or(false)
+        .ok()
+        .filter(|o| o.status.success())
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+        .filter(|s| !s.is_empty())
 }
 
 fn default_whisper_model_path() -> String {
@@ -208,16 +225,54 @@ fn default_whisper_model_path() -> String {
     )
 }
 
-/// Lets the first-run setup screen show real state instead of guessing -
-/// whether Homebrew and whisper.cpp are on PATH, and whether the speech
-/// model has already been downloaded.
-#[tauri::command]
-fn check_setup_status() -> SetupStatus {
-    SetupStatus {
-        brew_installed: on_path("brew"),
-        whisper_installed: on_path("whisper-cli"),
-        whisper_model_present: std::path::Path::new(&default_whisper_model_path()).exists(),
+/// Best-effort check for whether an Ollama model has been pulled, by
+/// asking its local API rather than shelling out to `ollama list` (which
+/// needs the daemon reachable anyway, so the HTTP call tells us the same
+/// thing and doubles as a liveness check).
+async fn ollama_has_model(model: &str) -> bool {
+    #[derive(serde::Deserialize)]
+    struct Tags {
+        models: Vec<TagModel>,
     }
+    #[derive(serde::Deserialize)]
+    struct TagModel {
+        name: String,
+    }
+    let Ok(resp) = reqwest::get("http://localhost:11434/api/tags").await else {
+        return false;
+    };
+    let Ok(tags) = resp.json::<Tags>().await else {
+        return false;
+    };
+    tags.models.iter().any(|m| m.name.starts_with(model))
+}
+
+/// Lets the first-run setup screen show real state instead of guessing -
+/// whether Homebrew, whisper.cpp and Ollama are actually installed, and
+/// whether the speech model / AI model have already been downloaded.
+#[tauri::command]
+async fn check_setup_status(ollama_model: String) -> SetupStatus {
+    SetupStatus {
+        brew_installed: find_executable("brew").is_some(),
+        whisper_installed: find_executable("whisper-cli").is_some(),
+        whisper_model_present: std::path::Path::new(&default_whisper_model_path()).exists(),
+        ollama_installed: find_executable("ollama").is_some(),
+        ollama_model_present: ollama_has_model(&ollama_model).await,
+    }
+}
+
+fn run_brew(args: &[&str]) -> Result<String, String> {
+    let brew = find_executable("brew").ok_or_else(|| {
+        "Homebrew isn't installed - install it from https://brew.sh first.".to_string()
+    })?;
+    let output = std::process::Command::new(brew)
+        .args(args)
+        .output()
+        .map_err(|e| format!("couldn't run brew: {e}"))?;
+    if !output.status.success() {
+        return Err(String::from_utf8_lossy(&output.stderr).trim().to_string());
+    }
+    Ok(String::from_utf8_lossy(&output.stdout).to_string())
 }
 
 /// Runs `brew install whisper-cpp` for the setup screen's "Install" button.
@@ -226,21 +281,47 @@ fn check_setup_status() -> SetupStatus {
 /// share.
 #[tauri::command]
 async fn install_whisper_cpp() -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(|| run_brew(&["install", "whisper-cpp"]))
+        .await
+        .map_err(|e| format!("install task panicked: {e}"))?
+}
+
+/// Runs `brew install ollama` then starts it as a background service (so
+/// `ollama pull`/`ollama run` have a daemon to talk to without the user
+/// needing to leave a terminal window open).
+#[tauri::command]
+async fn install_ollama() -> Result<String, String> {
     tauri::async_runtime::spawn_blocking(|| {
-        let output = std::process::Command::new("brew")
-            .args(["install", "whisper-cpp"])
+        let out = run_brew(&["install", "ollama"])?;
+        let _ = run_brew(&["services", "start", "ollama"]);
+        Ok(out)
+    })
+    .await
+    .map_err(|e| format!("install task panicked: {e}"))?
+}
+
+/// Runs `ollama pull <model>` - a real download (several GB for most
+/// models), so this runs on a blocking thread like the other installers.
+#[tauri::command]
+async fn pull_ollama_model(model: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let ollama = find_executable("ollama").ok_or_else(|| {
+            "Ollama isn't installed yet - install it first.".to_string()
+        })?;
+        let output = std::process::Command::new(ollama)
+            .args(["pull", &model])
             .output()
-            .map_err(|e| format!("couldn't run brew: {e}"))?;
+            .map_err(|e| format!("couldn't run ollama: {e}"))?;
         if !output.status.success() {
             return Err(format!(
-                "brew install failed: {}",
+                "ollama pull failed: {}",
                 String::from_utf8_lossy(&output.stderr)
             ));
         }
         Ok(String::from_utf8_lossy(&output.stdout).to_string())
     })
     .await
-    .map_err(|e| format!("install task panicked: {e}"))?
+    .map_err(|e| format!("pull task panicked: {e}"))?
 }
 
 /// Downloads the base English whisper.cpp model into ~/.cache/whisper -
@@ -324,16 +405,19 @@ async fn transcribe_audio(wav_base64: String, model_path: Option<String>) -> Res
     let wav_path = std::env::temp_dir().join(format!("holdshort-stt-{nonce}.wav"));
     std::fs::write(&wav_path, &bytes).map_err(|e| format!("couldn't write temp audio: {e}"))?;
 
-    let output = std::process::Command::new("whisper-cli")
+    let Some(whisper_cli) = find_executable("whisper-cli") else {
+        let _ = std::fs::remove_file(&wav_path);
+        return Err(
+            "Couldn't find `whisper-cli` - install whisper.cpp with `brew install whisper-cpp`."
+                .to_string(),
+        );
+    };
+    let output = std::process::Command::new(whisper_cli)
         .args(["-m", &model, "-f", wav_path.to_string_lossy().as_ref(), "-nt", "-np"])
         .output();
     let _ = std::fs::remove_file(&wav_path);
 
-    let output = output.map_err(|_| {
-        "Couldn't run `whisper-cli` - install whisper.cpp with `brew install whisper-cpp` \
-         and make sure it's on your PATH."
-            .to_string()
-    })?;
+    let output = output.map_err(|e| format!("couldn't run whisper-cli: {e}"))?;
     if !output.status.success() {
         return Err(format!(
             "whisper-cli failed: {}",
@@ -455,6 +539,8 @@ pub fn run() {
             check_setup_status,
             install_whisper_cpp,
             download_whisper_model,
+            install_ollama,
+            pull_ollama_model,
             refresh_launch_services
         ])
         .run(tauri::generate_context!())

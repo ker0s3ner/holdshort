@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import type { AirportSummary } from "../types";
-import { setSttEnabled } from "../voiceSettings";
+import { getOllamaModel, setSttEnabled } from "../voiceSettings";
 
 interface Props {
   onDone: () => void;
@@ -65,20 +65,31 @@ interface SetupStatus {
   brew_installed: boolean;
   whisper_installed: boolean;
   whisper_model_present: boolean;
+  ollama_installed: boolean;
+  ollama_model_present: boolean;
 }
+
+type Busy =
+  | "idle"
+  | "installing-whisper"
+  | "downloading-model"
+  | "installing-ollama"
+  | "pulling-model";
 
 function VoiceStep({ onNext, onSkip }: { onNext: () => void; onSkip: () => void }) {
   const [status, setStatus] = useState<SetupStatus | null>(null);
-  const [busy, setBusy] = useState<"idle" | "installing" | "downloading">("idle");
+  const [busy, setBusy] = useState<Busy>("idle");
   const [error, setError] = useState<string | null>(null);
+  const ollamaModel = getOllamaModel();
 
   const refresh = () =>
-    invoke<SetupStatus>("check_setup_status")
+    invoke<SetupStatus>("check_setup_status", { ollamaModel })
       .then(setStatus)
       .catch((e) => setError(String(e)));
 
   useEffect(() => {
     refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -87,11 +98,11 @@ function VoiceStep({ onNext, onSkip }: { onNext: () => void; onSkip: () => void 
     }
   }, [status]);
 
-  const installWhisper = async () => {
-    setBusy("installing");
+  const run = async (busyState: Busy, command: string, args?: Record<string, unknown>) => {
+    setBusy(busyState);
     setError(null);
     try {
-      await invoke("install_whisper_cpp");
+      await invoke(command, args);
       await refresh();
     } catch (e) {
       setError(String(e));
@@ -100,28 +111,19 @@ function VoiceStep({ onNext, onSkip }: { onNext: () => void; onSkip: () => void 
     }
   };
 
-  const downloadModel = async () => {
-    setBusy("downloading");
-    setError(null);
-    try {
-      await invoke("download_whisper_model");
-      await refresh();
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setBusy("idle");
-    }
-  };
-
-  const ready = !!(status?.whisper_installed && status?.whisper_model_present);
+  const sttReady = !!(status?.whisper_installed && status?.whisper_model_present);
+  const aiReady = !!(status?.ollama_installed && status?.ollama_model_present);
 
   return (
     <>
-      <h1 className="setup-title">Speech-to-text (optional)</h1>
+      <h1 className="setup-title">Voice (optional)</h1>
       <p className="setup-body">
-        macOS's embedded web view can't use browser speech recognition, so talking to ATC uses a
-        real local engine - <code>whisper.cpp</code> - instead. It runs entirely on this Mac, no
-        account or internet needed once set up.
+        Both of these run entirely on this Mac, no account needed: <code>whisper.cpp</code> for
+        talking to ATC (macOS's web view can't use browser speech recognition), and{" "}
+        <a href="https://ollama.com" target="_blank" rel="noreferrer">
+          Ollama
+        </a>{" "}
+        to phrase pilot readbacks naturally instead of a fixed template.
       </p>
       <div className="setup-checklist">
         <div className="setup-check-row">
@@ -133,24 +135,55 @@ function VoiceStep({ onNext, onSkip }: { onNext: () => void; onSkip: () => void 
           )}
         </div>
         <div className="setup-check-row">
-          <span>{status?.whisper_installed ? "✓" : "–"} whisper.cpp</span>
+          <span>{status?.whisper_installed ? "✓" : "–"} whisper.cpp (speech-to-text)</span>
           {!status?.whisper_installed && (
-            <button disabled={!status?.brew_installed || busy !== "idle"} onClick={installWhisper}>
-              {busy === "installing" ? "Installing…" : "Install"}
+            <button
+              disabled={!status?.brew_installed || busy !== "idle"}
+              onClick={() => run("installing-whisper", "install_whisper_cpp")}
+            >
+              {busy === "installing-whisper" ? "Installing…" : "Install"}
             </button>
           )}
         </div>
         <div className="setup-check-row">
           <span>{status?.whisper_model_present ? "✓" : "–"} Speech model (~140MB)</span>
           {!status?.whisper_model_present && (
-            <button disabled={busy !== "idle"} onClick={downloadModel}>
-              {busy === "downloading" ? "Downloading…" : "Download"}
+            <button
+              disabled={busy !== "idle"}
+              onClick={() => run("downloading-model", "download_whisper_model")}
+            >
+              {busy === "downloading-model" ? "Downloading…" : "Download"}
+            </button>
+          )}
+        </div>
+        <div className="setup-check-row">
+          <span>{status?.ollama_installed ? "✓" : "–"} Ollama (AI readback)</span>
+          {!status?.ollama_installed && (
+            <button
+              disabled={!status?.brew_installed || busy !== "idle"}
+              onClick={() => run("installing-ollama", "install_ollama")}
+            >
+              {busy === "installing-ollama" ? "Installing…" : "Install"}
+            </button>
+          )}
+        </div>
+        <div className="setup-check-row">
+          <span>
+            {status?.ollama_model_present ? "✓" : "–"} Model "{ollamaModel}" (several GB)
+          </span>
+          {status?.ollama_installed && !status?.ollama_model_present && (
+            <button
+              disabled={busy !== "idle"}
+              onClick={() => run("pulling-model", "pull_ollama_model", { model: ollamaModel })}
+            >
+              {busy === "pulling-model" ? "Pulling…" : "Pull"}
             </button>
           )}
         </div>
       </div>
       {error && <p className="muted settings-note">⚠ {error}</p>}
-      {ready && <p className="muted settings-note">Ready - push-to-talk is now on.</p>}
+      {sttReady && <p className="muted settings-note">Speech-to-text ready - push-to-talk is on.</p>}
+      {aiReady && <p className="muted settings-note">AI readback ready.</p>}
       <div className="setup-actions">
         <button className="setup-skip" onClick={onSkip}>
           Skip for now
