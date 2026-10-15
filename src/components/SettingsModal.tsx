@@ -17,12 +17,13 @@ import {
 
 interface Props {
   onClose: () => void;
+  onRerunSetup: () => void;
 }
 
 /** Settings is intentionally minimal — the knobs that exist are real,
  * nothing here is decorative. More (units, traffic density) land as the
  * simulation grows. */
-export function SettingsModal({ onClose }: Props) {
+export function SettingsModal({ onClose, onRerunSetup }: Props) {
   const [readback, setReadback] = useState(isReadbackEnabled());
   const [model, setModel] = useState(getOllamaModel());
   const [ttsVoice, setTtsVoice] = useState(getTtsVoiceName());
@@ -47,6 +48,10 @@ export function SettingsModal({ onClose }: Props) {
       <div className="settings-row">
         <span>Update channel</span>
         <span className="muted">GitHub Releases (auto-update on launch)</span>
+      </div>
+      <div className="settings-row">
+        <span>First-time setup (voice engine + regions)</span>
+        <button onClick={onRerunSetup}>Run again</button>
       </div>
 
       <p className="panel-subheader">Text-to-speech (pilot readbacks)</p>

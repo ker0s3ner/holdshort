@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { check, type Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
+import { invoke } from "@tauri-apps/api/core";
 
 type Status = "idle" | "checking" | "available" | "installing" | "error";
 
@@ -33,6 +34,12 @@ export function UpdateBanner() {
     setStatus("installing");
     try {
       await update.downloadAndInstall();
+      // The app isn't signed with a stable Developer ID (no paid Apple
+      // account for this project), so each build's ad-hoc signature
+      // differs and the Dock can keep pointing at the replaced bundle
+      // after an in-place update - force Launch Services to re-register
+      // it before relaunching so the Dock icon keeps working.
+      await invoke("refresh_launch_services").catch(() => {});
       await relaunch();
     } catch (e) {
       setError(String(e));

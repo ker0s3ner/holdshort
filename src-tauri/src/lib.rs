@@ -186,6 +186,109 @@ async fn ask_ai(prompt: String, model: Option<String>) -> Result<String, String>
     Ok(parsed.response.trim().to_string())
 }
 
+#[derive(Serialize, Clone)]
+struct SetupStatus {
+    brew_installed: bool,
+    whisper_installed: bool,
+    whisper_model_present: bool,
+}
+
+fn on_path(cmd: &str) -> bool {
+    std::process::Command::new("which")
+        .arg(cmd)
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false)
+}
+
+fn default_whisper_model_path() -> String {
+    format!(
+        "{}/.cache/whisper/ggml-base.en.bin",
+        std::env::var("HOME").unwrap_or_default()
+    )
+}
+
+/// Lets the first-run setup screen show real state instead of guessing -
+/// whether Homebrew and whisper.cpp are on PATH, and whether the speech
+/// model has already been downloaded.
+#[tauri::command]
+fn check_setup_status() -> SetupStatus {
+    SetupStatus {
+        brew_installed: on_path("brew"),
+        whisper_installed: on_path("whisper-cli"),
+        whisper_model_present: std::path::Path::new(&default_whisper_model_path()).exists(),
+    }
+}
+
+/// Runs `brew install whisper-cpp` for the setup screen's "Install" button.
+/// This can take a while (compiling/linking a real package), so it runs on
+/// a blocking thread rather than tying up the async runtime other commands
+/// share.
+#[tauri::command]
+async fn install_whisper_cpp() -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(|| {
+        let output = std::process::Command::new("brew")
+            .args(["install", "whisper-cpp"])
+            .output()
+            .map_err(|e| format!("couldn't run brew: {e}"))?;
+        if !output.status.success() {
+            return Err(format!(
+                "brew install failed: {}",
+                String::from_utf8_lossy(&output.stderr)
+            ));
+        }
+        Ok(String::from_utf8_lossy(&output.stdout).to_string())
+    })
+    .await
+    .map_err(|e| format!("install task panicked: {e}"))?
+}
+
+/// Downloads the base English whisper.cpp model into ~/.cache/whisper -
+/// about 140MB, a one-time cost so speech-to-text works offline afterward.
+#[tauri::command]
+async fn download_whisper_model() -> Result<(), String> {
+    let model_path = default_whisper_model_path();
+    let dir = std::path::Path::new(&model_path)
+        .parent()
+        .ok_or("invalid model path")?;
+    std::fs::create_dir_all(dir).map_err(|e| format!("couldn't create {dir:?}: {e}"))?;
+
+    let url = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin";
+    let resp = reqwest::get(url)
+        .await
+        .map_err(|e| format!("download failed: {e}"))?;
+    if !resp.status().is_success() {
+        return Err(format!("download failed: HTTP {}", resp.status()));
+    }
+    let bytes = resp
+        .bytes()
+        .await
+        .map_err(|e| format!("couldn't read model bytes: {e}"))?;
+    std::fs::write(&model_path, &bytes).map_err(|e| format!("couldn't write model: {e}"))?;
+    Ok(())
+}
+
+/// After an in-place auto-update, macOS's Dock sometimes keeps pointing at
+/// the now-replaced app bundle (the icon goes stale or stops launching the
+/// new binary) because the app is ad-hoc signed rather than signed with a
+/// stable Developer ID - there's no paid Apple Developer account for this
+/// project, so that's not available. Forcing Launch Services to
+/// re-register the bundle right before relaunching fixes it without that.
+#[tauri::command]
+fn refresh_launch_services() {
+    let Ok(exe) = std::env::current_exe() else { return };
+    // exe is .../Holdshort.app/Contents/MacOS/tauri-app
+    let Some(bundle) = exe.parent().and_then(|p| p.parent()).and_then(|p| p.parent()) else {
+        return;
+    };
+    let _ = std::process::Command::new("touch").arg(bundle).output();
+    let _ = std::process::Command::new(
+        "/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister",
+    )
+    .args(["-f", &bundle.to_string_lossy()])
+    .output();
+}
+
 /// Transcribes a 16-bit PCM WAV recording (base64-encoded, built client-side
 /// from the mic via Web Audio) using a local whisper.cpp install. There's no
 /// bundled model or binary - WKWebView can't run browser speech recognition,
@@ -348,7 +451,11 @@ pub fn run() {
             set_speaking,
             get_metar,
             ask_ai,
-            transcribe_audio
+            transcribe_audio,
+            check_setup_status,
+            install_whisper_cpp,
+            download_whisper_model,
+            refresh_launch_services
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

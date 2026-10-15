@@ -6,6 +6,7 @@ import { TowerCabView } from "./components/TowerCabView";
 import { ClearancePanel } from "./components/ClearancePanel";
 import { UpdateBanner } from "./components/UpdateBanner";
 import { Launcher } from "./components/Launcher";
+import { SetupWizard } from "./components/SetupWizard";
 import { SettingsModal } from "./components/SettingsModal";
 import { ManageRegionsModal } from "./components/ManageRegionsModal";
 import { NewProfileModal } from "./components/NewProfileModal";
@@ -23,11 +24,15 @@ import type {
 } from "./types";
 import "./App.css";
 
-type Screen = "launcher" | "session";
+type Screen = "setup" | "launcher" | "session";
 type ViewMode = "smr" | "tower";
 
+const SETUP_DONE_KEY = "holdshort.setupComplete";
+
 function App() {
-  const [screen, setScreen] = useState<Screen>("launcher");
+  const [screen, setScreen] = useState<Screen>(() =>
+    localStorage.getItem(SETUP_DONE_KEY) === "true" ? "launcher" : "setup"
+  );
   const [airports, setAirports] = useState<AirportSummary[]>([]);
   const [airportsLoading, setAirportsLoading] = useState(true);
   const [sessionLoading, setSessionLoading] = useState(false);
@@ -96,6 +101,18 @@ function App() {
     return <div className="status-line error">{error}</div>;
   }
 
+  if (screen === "setup") {
+    return (
+      <SetupWizard
+        onDone={() => {
+          localStorage.setItem(SETUP_DONE_KEY, "true");
+          setInstalledVersion((v) => v + 1);
+          setScreen("launcher");
+        }}
+      />
+    );
+  }
+
   if (screen === "launcher") {
     return (
       <>
@@ -109,7 +126,15 @@ function App() {
           onOpenSettings={() => setSettingsOpen(true)}
           onOpenManageAirports={() => setManageRegionsOpen(true)}
         />
-        {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} />}
+        {settingsOpen && (
+          <SettingsModal
+            onClose={() => setSettingsOpen(false)}
+            onRerunSetup={() => {
+              setSettingsOpen(false);
+              setScreen("setup");
+            }}
+          />
+        )}
         {manageRegionsOpen && (
           <ManageRegionsModal
             installed={airports}
