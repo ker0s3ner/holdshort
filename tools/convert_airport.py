@@ -130,6 +130,21 @@ def main(src_path, icao, name, out_path):
             "heading_deg": round(brg, 1),
         })
 
+    # Building/apron footprints: visual-only polygons (not part of the
+    # routing graph), so they carry their own inline x/y rather than
+    # referencing the pruned node set.
+    areas = []
+    for w in ways:
+        t = w.get("tags", {})
+        aeroway = t.get("aeroway")
+        if aeroway not in ("terminal", "hangar", "apron"):
+            continue
+        wnodes = [n for n in w["nodes"] if n in nodes]
+        if len(wnodes) < 3:
+            continue
+        points = [[out_nodes[str(n)]["x"], out_nodes[str(n)]["y"]] for n in wnodes]
+        areas.append({"kind": aeroway, "points": points})
+
     parking = []
     for w in ways:
         t = w.get("tags", {})
@@ -217,12 +232,13 @@ def main(src_path, icao, name, out_path):
         "edges": edges,
         "runways": runways,
         "parking_positions": parking,
+        "areas": areas,
     }
 
     with open(out_path, "w") as f:
         json.dump(result, f, indent=2)
 
-    print(f"nodes={len(pruned_nodes)} edges={len(edges)} runways={len(runways)} parking={len(parking)}")
+    print(f"nodes={len(pruned_nodes)} edges={len(edges)} runways={len(runways)} parking={len(parking)} areas={len(areas)}")
 
 if __name__ == "__main__":
     main(sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4])

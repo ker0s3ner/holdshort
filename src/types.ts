@@ -37,6 +37,11 @@ export interface ParkingPosition {
   parking_type: string;
 }
 
+export interface Area {
+  kind: "terminal" | "hangar" | "apron";
+  points: [number, number][];
+}
+
 export interface AirportData {
   icao: string;
   name: string;
@@ -46,6 +51,7 @@ export interface AirportData {
   edges: AirportEdge[];
   runways: Runway[];
   parking_positions: ParkingPosition[];
+  areas: Area[];
 }
 
 export type AircraftState =

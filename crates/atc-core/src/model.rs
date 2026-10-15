@@ -48,6 +48,14 @@ pub struct ParkingPosition {
     pub parking_type: String,
 }
 
+/// Visual-only building/ramp footprint (terminal, hangar, apron). Not part
+/// of the routing graph - carries its own coordinates rather than node ids.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Area {
+    pub kind: String,
+    pub points: Vec<[f64; 2]>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AirportData {
     pub icao: String,
@@ -58,6 +66,8 @@ pub struct AirportData {
     pub edges: Vec<Edge>,
     pub runways: Vec<Runway>,
     pub parking_positions: Vec<ParkingPosition>,
+    #[serde(default)]
+    pub areas: Vec<Area>,
 }
 
 impl AirportData {
