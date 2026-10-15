@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { SurfaceDisplay } from "./components/SurfaceDisplay";
+import { TowerCabView } from "./components/TowerCabView";
 import { ClearancePanel } from "./components/ClearancePanel";
 import { UpdateBanner } from "./components/UpdateBanner";
 import { Launcher } from "./components/Launcher";
@@ -18,6 +19,7 @@ import type {
 import "./App.css";
 
 type Screen = "launcher" | "session";
+type ViewMode = "smr" | "tower";
 
 function App() {
   const [screen, setScreen] = useState<Screen>("launcher");
@@ -30,6 +32,7 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [editPacksOpen, setEditPacksOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>("smr");
 
   useEffect(() => {
     invoke<AirportSummary[]>("list_airports")
@@ -55,6 +58,7 @@ function App() {
         setAirport(data);
         setRole(chosenRole);
         setSelectedCallsign(null);
+        setViewMode(chosenRole === "tower" ? "tower" : "smr");
         setScreen("session");
       })
       .catch((e) => setError(String(e)));
@@ -113,17 +117,40 @@ function App() {
         <span className="title">
           {airport.name} ({airport.icao}) · {role.toUpperCase()}
         </span>
+        <div className="view-toggle">
+          <button
+            className={viewMode === "smr" ? "active" : ""}
+            onClick={() => setViewMode("smr")}
+          >
+            SMR
+          </button>
+          <button
+            className={viewMode === "tower" ? "active" : ""}
+            onClick={() => setViewMode("tower")}
+          >
+            TOWER CAB
+          </button>
+        </div>
         <span className="clock">
           SIM T+{pad(hh)}:{pad(mm)}:{pad(ss)}
         </span>
       </div>
       <div className="main-area">
-        <SurfaceDisplay
-          airport={airport}
-          aircraft={aircraft}
-          selectedCallsign={selectedCallsign}
-          onSelectAircraft={setSelectedCallsign}
-        />
+        {viewMode === "smr" ? (
+          <SurfaceDisplay
+            airport={airport}
+            aircraft={aircraft}
+            selectedCallsign={selectedCallsign}
+            onSelectAircraft={setSelectedCallsign}
+          />
+        ) : (
+          <TowerCabView
+            airport={airport}
+            aircraft={aircraft}
+            selectedCallsign={selectedCallsign}
+            onSelectAircraft={setSelectedCallsign}
+          />
+        )}
         <ClearancePanel
           airport={airport}
           aircraft={aircraft}
@@ -133,7 +160,10 @@ function App() {
           onIssue={onIssue}
         />
       </div>
-      <div className="attribution">{airport.attribution}</div>
+      <div className="attribution">
+        {airport.attribution}
+        {viewMode === "tower" && " · Imagery: Esri, Maxar, Earthstar Geographics"}
+      </div>
     </div>
   );
 }

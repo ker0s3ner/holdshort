@@ -42,6 +42,12 @@ export interface Area {
   points: [number, number][];
 }
 
+export interface Tower {
+  x: number;
+  y: number;
+  height_m: number;
+}
+
 export interface AirportData {
   icao: string;
   name: string;
@@ -52,6 +58,7 @@ export interface AirportData {
   runways: Runway[];
   parking_positions: ParkingPosition[];
   areas: Area[];
+  towers: Tower[];
 }
 
 export type AircraftState =

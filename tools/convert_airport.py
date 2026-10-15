@@ -145,6 +145,23 @@ def main(src_path, icao, name, out_path):
         points = [[out_nodes[str(n)]["x"], out_nodes[str(n)]["y"]] for n in wnodes]
         areas.append({"kind": aeroway, "points": points})
 
+    towers = []
+    for w in ways:
+        t = w.get("tags", {})
+        if t.get("aeroway") != "tower":
+            continue
+        wnodes = [n for n in w["nodes"] if n in nodes]
+        if not wnodes:
+            continue
+        xs = [out_nodes[str(n)]["x"] for n in wnodes]
+        ys = [out_nodes[str(n)]["y"] for n in wnodes]
+        height = parse_width(t.get("height"))
+        towers.append({
+            "x": round(sum(xs) / len(xs), 2),
+            "y": round(sum(ys) / len(ys), 2),
+            "height_m": height if height is not None else 30.0,
+        })
+
     parking = []
     for w in ways:
         t = w.get("tags", {})
@@ -233,12 +250,13 @@ def main(src_path, icao, name, out_path):
         "runways": runways,
         "parking_positions": parking,
         "areas": areas,
+        "towers": towers,
     }
 
     with open(out_path, "w") as f:
         json.dump(result, f, indent=2)
 
-    print(f"nodes={len(pruned_nodes)} edges={len(edges)} runways={len(runways)} parking={len(parking)} areas={len(areas)}")
+    print(f"nodes={len(pruned_nodes)} edges={len(edges)} runways={len(runways)} parking={len(parking)} areas={len(areas)} towers={len(towers)}")
 
 if __name__ == "__main__":
     main(sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4])

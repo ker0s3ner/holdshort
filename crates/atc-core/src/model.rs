@@ -56,6 +56,16 @@ pub struct Area {
     pub points: Vec<[f64; 2]>,
 }
 
+/// A real-world control tower position, used to anchor the Tower Cab 3D
+/// view's camera. Airports without an OSM-tagged tower fall back to the
+/// airport reference point at a nominal height.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Tower {
+    pub x: f64,
+    pub y: f64,
+    pub height_m: f64,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AirportData {
     pub icao: String,
@@ -68,6 +78,8 @@ pub struct AirportData {
     pub parking_positions: Vec<ParkingPosition>,
     #[serde(default)]
     pub areas: Vec<Area>,
+    #[serde(default)]
+    pub towers: Vec<Tower>,
 }
 
 impl AirportData {
