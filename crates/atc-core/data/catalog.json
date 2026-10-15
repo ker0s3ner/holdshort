@@ -203,5 +203,40 @@
     "icao": "EYSB",
     "name": "Barysiai Airfield",
     "region": "Lithuania"
+  },
+  {
+    "icao": "EEEI",
+    "name": "Ämari Air Base",
+    "region": "Estonia"
+  },
+  {
+    "icao": "EEKA",
+    "name": "Kärdla Airport",
+    "region": "Estonia"
+  },
+  {
+    "icao": "EEKE",
+    "name": "Kuressaare Airport",
+    "region": "Estonia"
+  },
+  {
+    "icao": "EEPU",
+    "name": "Pärnu Airport",
+    "region": "Estonia"
+  },
+  {
+    "icao": "EETU",
+    "name": "Tartu Airport",
+    "region": "Estonia"
+  },
+  {
+    "icao": "EVLA",
+    "name": "Liepāja International Airport",
+    "region": "Latvia"
+  },
+  {
+    "icao": "EVTA",
+    "name": "Jūrmala Airport",
+    "region": "Latvia"
   }
 ]
