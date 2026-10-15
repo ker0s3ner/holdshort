@@ -1,0 +1,23 @@
+# Node
+node_modules/
+dist/
+
+# Rust
+/target/
+crates/*/target/
+
+# Tauri build output
+src-tauri/target/
+src-tauri/gen/
+
+# Signing keys - never commit these
+*.key
+*.key.pub
+.tauri/
+
+# OS
+.DS_Store
+
+# Editor
+.vscode/*
+!.vscode/extensions.json
