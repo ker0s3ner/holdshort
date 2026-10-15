@@ -60,24 +60,13 @@ html, body, #root {
   cursor: grab;
 }
 
-.view-toggle {
-  display: flex;
-  gap: 4px;
-}
-
-.view-toggle button {
-  background: #0f1a15;
+.view-label {
   border: 1px solid #1c2b22;
-  color: #9adbb6;
+  color: #7fffb0;
   padding: 4px 10px;
   border-radius: 3px;
-  cursor: pointer;
   font-size: 11px;
-}
-
-.view-toggle button.active {
-  border-color: #7fffb0;
-  color: #7fffb0;
+  letter-spacing: 0.04em;
 }
 
 .clearance-panel {
@@ -454,6 +443,20 @@ html, body, #root {
   padding: 3px 10px;
   font-size: 10px;
   border-radius: 3px;
+}
+
+.region-row {
+  border-bottom: 1px solid #16201a;
+  padding: 2px 0 6px 0;
+}
+
+.region-row .airport-list-row {
+  border-bottom: none;
+}
+
+.region-facilities {
+  font-size: 10px;
+  color: #577;
 }
 
 .field-label {

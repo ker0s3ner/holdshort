@@ -111,7 +111,7 @@ export function Launcher({ airports, onStart, onNewProfile, onOpenSettings, onOp
           />
         </div>
         <button className="manage-airports-button" onClick={onOpenManageAirports}>
-          Manage Installed Airports…
+          Manage Installed Regions…
         </button>
       </div>
     </div>

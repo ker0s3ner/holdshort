@@ -7,7 +7,7 @@ import { ClearancePanel } from "./components/ClearancePanel";
 import { UpdateBanner } from "./components/UpdateBanner";
 import { Launcher } from "./components/Launcher";
 import { SettingsModal } from "./components/SettingsModal";
-import { ManageAirportsModal } from "./components/ManageAirportsModal";
+import { ManageRegionsModal } from "./components/ManageRegionsModal";
 import { NewProfileModal } from "./components/NewProfileModal";
 import { LoadingModal } from "./components/LoadingModal";
 import type { Profile } from "./profiles";
@@ -36,7 +36,7 @@ function App() {
   const [selectedCallsign, setSelectedCallsign] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [manageAirportsOpen, setManageAirportsOpen] = useState(false);
+  const [manageRegionsOpen, setManageRegionsOpen] = useState(false);
   const [newProfileOpen, setNewProfileOpen] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("smr");
   const [profilesVersion, setProfilesVersion] = useState(0);
@@ -102,11 +102,11 @@ function App() {
           onStart={startProfile}
           onNewProfile={() => setNewProfileOpen(true)}
           onOpenSettings={() => setSettingsOpen(true)}
-          onOpenManageAirports={() => setManageAirportsOpen(true)}
+          onOpenManageAirports={() => setManageRegionsOpen(true)}
         />
         {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} />}
-        {manageAirportsOpen && (
-          <ManageAirportsModal airports={airports} onClose={() => setManageAirportsOpen(false)} />
+        {manageRegionsOpen && (
+          <ManageRegionsModal airports={airports} onClose={() => setManageRegionsOpen(false)} />
         )}
         {newProfileOpen && (
           <NewProfileModal
@@ -141,20 +141,7 @@ function App() {
         <span className="title">
           {airport.name} ({airport.icao}) · {role.toUpperCase()}
         </span>
-        <div className="view-toggle">
-          <button
-            className={viewMode === "smr" ? "active" : ""}
-            onClick={() => setViewMode("smr")}
-          >
-            SMR
-          </button>
-          <button
-            className={viewMode === "tower" ? "active" : ""}
-            onClick={() => setViewMode("tower")}
-          >
-            TOWER CAB
-          </button>
-        </div>
+        <span className="view-label">{viewMode === "smr" ? "SMR" : "TOWER CAB"}</span>
         <span className="clock">
           SIM T+{pad(hh)}:{pad(mm)}:{pad(ss)}
         </span>
