@@ -191,8 +191,72 @@ def main(src_path, icao, name, out_path):
 
     pruned_nodes = {nid: out_nodes[nid] for nid in out_nodes if int(nid) in used_node_ids}
 
-    # Connect isolated parking positions to the nearest node already reachable
-    # on the taxiway/apron graph, so every gate is routable.
+    # Some OSM parking_position points sit directly on a taxiway/taxilane
+    # centerline node rather than offset into the actual stand - this makes
+    # aircraft spawn "on" the taxiway visually. Nudge those onto a synthetic
+    # stand node just off the pavement, linked back in by a short connector
+    # (toward the nearest apron/terminal footprint when we have one, so the
+    # offset lands on the ramp rather than into a building or the grass).
+    taxi_edge_dirs = {}
+    for e in edges:
+        if e["kind"] not in ("taxiway", "taxilane", "runway", "stopway"):
+            continue
+        a, b = e["from"], e["to"]
+        na, nb = pruned_nodes[a], pruned_nodes[b]
+        dx, dy = nb["x"] - na["x"], nb["y"] - na["y"]
+        length = math.hypot(dx, dy) or 1
+        dx, dy = dx / length, dy / length
+        taxi_edge_dirs.setdefault(a, []).append((dx, dy))
+        taxi_edge_dirs.setdefault(b, []).append((dx, dy))
+
+    STAND_OFFSET_M = 18.0
+    area_centroids = [
+        (
+            sum(pt[0] for pt in a["points"]) / len(a["points"]),
+            sum(pt[1] for pt in a["points"]) / len(a["points"]),
+        )
+        for a in areas
+        if a["kind"] in ("apron", "terminal")
+    ]
+
+    def nearest_area_dist(pt):
+        return min(math.hypot(pt[0] - cx, pt[1] - cy) for cx, cy in area_centroids)
+
+    for p in parking:
+        nid = p["node"]
+        dirs = taxi_edge_dirs.get(nid)
+        if not dirs:
+            continue
+        dx, dy = dirs[0]
+        perp = (-dy, dx)
+        base = pruned_nodes[nid]
+        cand_a = (base["x"] + perp[0] * STAND_OFFSET_M, base["y"] + perp[1] * STAND_OFFSET_M)
+        cand_b = (base["x"] - perp[0] * STAND_OFFSET_M, base["y"] - perp[1] * STAND_OFFSET_M)
+        if area_centroids:
+            chosen = cand_a if nearest_area_dist(cand_a) <= nearest_area_dist(cand_b) else cand_b
+        else:
+            chosen = cand_a
+
+        stand_id = f"{nid}_stand"
+        local_y = chosen[1] / R * (180 / math.pi)
+        local_x = chosen[0] / (R * math.cos(math.radians(ref_lat))) * (180 / math.pi)
+        pruned_nodes[stand_id] = {
+            "id": stand_id,
+            "lat": ref_lat + local_y,
+            "lon": ref_lon + local_x,
+            "x": round(chosen[0], 2),
+            "y": round(chosen[1], 2),
+        }
+        edges.append({
+            "id": f"standlink{nid}",
+            "from": stand_id,
+            "to": nid,
+            "kind": "gate_link",
+            "ref": "",
+            "length_m": STAND_OFFSET_M,
+        })
+        p["node"] = stand_id
+
     parent = {nid: nid for nid in pruned_nodes}
 
     def find(x):
@@ -207,6 +271,54 @@ def main(src_path, icao, name, out_path):
 
     for e in edges:
         union(e["from"], e["to"])
+
+    # OSM taxiway geometry sometimes has small digitizing gaps - two
+    # centerlines that should meet but don't quite share a node - which
+    # leaves whole taxiway/apron clusters disconnected from the main
+    # pavement network and makes them look unfinished/missing when
+    # rendered. Heal gaps up to a conservative distance by bridging the
+    # closest node pair between a stray cluster and the main network.
+    SNAP_THRESHOLD_M = 60.0
+    link_id = 0
+    for _ in range(50):
+        groups = {}
+        for nid in pruned_nodes:
+            groups.setdefault(find(nid), []).append(nid)
+        if len(groups) <= 1:
+            break
+        main_group = max(groups.values(), key=len)
+        main_set = set(main_group)
+        other_groups = [g for g in groups.values() if g is not main_group and len(g) > 1]
+        if not other_groups:
+            break
+        fragment = max(other_groups, key=len)
+
+        best_a, best_b, best_d = None, None, None
+        for fid in fragment:
+            fn = pruned_nodes[fid]
+            for mid in main_group:
+                mn = pruned_nodes[mid]
+                dist = math.hypot(mn["x"] - fn["x"], mn["y"] - fn["y"])
+                if best_d is None or dist < best_d:
+                    best_a, best_b, best_d = fid, mid, dist
+        if best_d is None or best_d > SNAP_THRESHOLD_M:
+            # Can't bridge this fragment safely - mark it "done" by
+            # merging it into main_set bookkeeping only, not the graph,
+            # so the loop moves on to the next fragment instead of
+            # retrying this one forever.
+            union(fragment[0], main_group[0])
+            continue
+
+        link_id += 1
+        edges.append({
+            "id": f"gap{link_id}",
+            "from": best_a,
+            "to": best_b,
+            "kind": "taxiway",
+            "ref": "",
+            "length_m": round(best_d, 2),
+        })
+        union(best_a, best_b)
 
     groups = {}
     for nid in pruned_nodes:

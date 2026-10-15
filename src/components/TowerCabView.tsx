@@ -10,6 +10,10 @@ interface Props {
 
 const DIAGRAM_COLOR = "#ffb020";
 const VIS_RING_METERS = 18_000; // ~10 statute miles, the default CRC clear-weather ring
+// How far past the airport's own geometry the satellite basemap extends,
+// so Tower Cab opens on a wide view of the surrounding area (matching real
+// CRC) instead of a tight crop around just the runways.
+const BASEMAP_MARGIN_M = 3500;
 
 /** Draws the same plane silhouette used on the SMR display, nose up. */
 function drawPlaneGlyph(ctx: CanvasRenderingContext2D) {
@@ -82,10 +86,10 @@ function loadBasemapTiles(airport: AirportData, onTileLoaded: () => void): Basem
 
   const xs = airport.nodes.map((n) => n.x);
   const ys = airport.nodes.map((n) => n.y);
-  const minX = Math.min(...xs) - 400;
-  const maxX = Math.max(...xs) + 400;
-  const minY = Math.min(...ys) - 400;
-  const maxY = Math.max(...ys) + 400;
+  const minX = Math.min(...xs) - BASEMAP_MARGIN_M;
+  const maxX = Math.max(...xs) + BASEMAP_MARGIN_M;
+  const minY = Math.min(...ys) - BASEMAP_MARGIN_M;
+  const maxY = Math.max(...ys) + BASEMAP_MARGIN_M;
 
   const toLatLon = (x: number, y: number): [number, number] => {
     const lat = refLat + (y / R_EARTH) * (180 / Math.PI);
@@ -105,7 +109,7 @@ function loadBasemapTiles(airport: AirportData, onTileLoaded: () => void): Basem
     const minTy = Math.min(ty0, ty1);
     const maxTy = Math.max(ty0, ty1);
     const count = (maxTx - minTx + 1) * (maxTy - minTy + 1);
-    if (count <= 64) {
+    if (count <= 120) {
       tileRange = { minTx, maxTx, minTy, maxTy };
       break;
     }
@@ -170,15 +174,15 @@ export function TowerCabView({ airport, aircraft, selectedCallsign, onSelectAirc
     {
       const xs = airport.nodes.map((n) => n.x);
       const ys = airport.nodes.map((n) => n.y);
-      const minX = Math.min(...xs);
-      const maxX = Math.max(...xs);
-      const minY = Math.min(...ys);
-      const maxY = Math.max(...ys);
+      const minX = Math.min(...xs) - BASEMAP_MARGIN_M * 0.6;
+      const maxX = Math.max(...xs) + BASEMAP_MARGIN_M * 0.6;
+      const minY = Math.min(...ys) - BASEMAP_MARGIN_M * 0.6;
+      const maxY = Math.max(...ys) + BASEMAP_MARGIN_M * 0.6;
       const spanX = Math.max(maxX - minX, 1);
       const spanY = Math.max(maxY - minY, 1);
       const w = canvas.width / dpr;
       const h = canvas.height / dpr;
-      const padding = 0.85;
+      const padding = 0.95;
       const fitScale = Math.min((w / spanX) * padding, (h / spanY) * padding);
       viewRef.current = {
         scale: fitScale,
