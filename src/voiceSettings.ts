@@ -4,6 +4,8 @@ const TTS_VOICE_KEY = "holdshort.voice.ttsVoice";
 const TTS_RATE_KEY = "holdshort.voice.ttsRate";
 const STT_ENABLED_KEY = "holdshort.voice.sttEnabled";
 const WHISPER_MODEL_KEY = "holdshort.voice.whisperModelPath";
+const MIC_DEVICE_KEY = "holdshort.voice.micDeviceId";
+const PTT_KEY_KEY = "holdshort.voice.pttKey";
 
 function getItem(key: string, fallback: string): string {
   try {
@@ -69,4 +71,23 @@ export function getWhisperModelPath(): string {
 
 export function setWhisperModelPath(path: string) {
   setItem(WHISPER_MODEL_KEY, path);
+}
+
+/** Empty string means "let the OS pick the default input device". */
+export function getMicDeviceId(): string {
+  return getItem(MIC_DEVICE_KEY, "");
+}
+
+export function setMicDeviceId(id: string) {
+  setItem(MIC_DEVICE_KEY, id);
+}
+
+/** KeyboardEvent.code, e.g. "Backquote". Empty string means push-to-talk
+ * has no keybind - only the mic button works. */
+export function getPttKey(): string {
+  return getItem(PTT_KEY_KEY, "Backquote");
+}
+
+export function setPttKey(code: string) {
+  setItem(PTT_KEY_KEY, code);
 }

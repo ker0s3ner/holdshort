@@ -4,6 +4,8 @@ import { listen } from "@tauri-apps/api/event";
 import { SurfaceDisplay } from "./components/SurfaceDisplay";
 import { TowerCabView } from "./components/TowerCabView";
 import { ClearancePanel } from "./components/ClearancePanel";
+import { TopBar } from "./components/TopBar";
+import { DepArrWindow } from "./components/DepArrWindow";
 import { UpdateBanner } from "./components/UpdateBanner";
 import { Launcher } from "./components/Launcher";
 import { SetupWizard } from "./components/SetupWizard";
@@ -48,6 +50,7 @@ function App() {
   const [viewMode, setViewMode] = useState<ViewMode>("smr");
   const [profilesVersion, setProfilesVersion] = useState(0);
   const [installedVersion, setInstalledVersion] = useState(0);
+  const [depArrOpen, setDepArrOpen] = useState(false);
 
   useEffect(() => {
     invoke<AirportSummary[]>("list_installed")
@@ -164,18 +167,21 @@ function App() {
   const mm = Math.floor((clockS % 3600) / 60);
   const ss = Math.floor(clockS % 60);
   const pad = (n: number) => n.toString().padStart(2, "0");
+  const selected = aircraft.find((a) => a.callsign === selectedCallsign) ?? null;
 
   return (
     <div className="app-shell">
       <UpdateBanner />
-      <div className="top-bar">
-        <button className="back-button" onClick={exitToLauncher} title="Back to menu">
-          ‹
-        </button>
-        <span className="clock">
-          {pad(hh)}:{pad(mm)}:{pad(ss)}
-        </span>
-      </div>
+      <TopBar
+        airport={airport}
+        role={role}
+        viewMode={viewMode}
+        clock={`${pad(hh)}:${pad(mm)}:${pad(ss)}`}
+        selected={selected}
+        depArrOpen={depArrOpen}
+        onBack={exitToLauncher}
+        onToggleDepArr={() => setDepArrOpen((v) => !v)}
+      />
       <div className="main-area">
         {viewMode === "smr" ? (
           <SurfaceDisplay
@@ -201,6 +207,13 @@ function App() {
           onIssue={onIssue}
         />
       </div>
+      {depArrOpen && (
+        <DepArrWindow
+          aircraft={aircraft}
+          onClose={() => setDepArrOpen(false)}
+          onSelect={setSelectedCallsign}
+        />
+      )}
       <div className="attribution">
         {airport.attribution}
         {viewMode === "tower" && " · Imagery: Esri, Maxar, Earthstar Geographics"}

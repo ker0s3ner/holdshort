@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { getWhisperModelPath } from "./voiceSettings";
+import { getMicDeviceId, getWhisperModelPath } from "./voiceSettings";
 
 /** Records 16-bit PCM mono WAV from the mic using plain Web Audio (not
  * MediaRecorder, whose default codec varies by platform) so the bytes sent
@@ -13,7 +13,15 @@ class Recorder {
   private sampleRate = 16000;
 
   async start() {
-    this.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    if (!navigator.mediaDevices?.getUserMedia) {
+      throw new Error(
+        "microphone access isn't available (no navigator.mediaDevices) - this needs the latest Holdshort build"
+      );
+    }
+    const deviceId = getMicDeviceId();
+    this.stream = await navigator.mediaDevices.getUserMedia({
+      audio: deviceId ? { deviceId: { exact: deviceId } } : true,
+    });
     this.ctx = new AudioContext();
     this.sampleRate = this.ctx.sampleRate;
     this.source = this.ctx.createMediaStreamSource(this.stream);

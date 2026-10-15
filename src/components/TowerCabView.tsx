@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import type { AirportData, AircraftSnapshot } from "../types";
+import { getDatablockMode, getShowLabels } from "../displaySettings";
 
 interface Props {
   airport: AirportData;
@@ -235,6 +236,24 @@ export function TowerCabView({ airport, aircraft, selectedCallsign, onSelectAirc
       ctx.fillStyle = grad;
       ctx.fillRect(0, 0, w, h);
 
+      // Apron/terminal/hangar footprints, outlined only (not filled) so the
+      // satellite imagery underneath still reads through.
+      ctx.strokeStyle = DIAGRAM_COLOR;
+      ctx.globalAlpha = 0.5;
+      ctx.lineWidth = 1;
+      for (const area of airport.areas) {
+        if (area.points.length < 3) continue;
+        ctx.beginPath();
+        area.points.forEach(([x, y], i) => {
+          const { sx, sy } = toScreen(x, y);
+          if (i === 0) ctx.moveTo(sx, sy);
+          else ctx.lineTo(sx, sy);
+        });
+        ctx.closePath();
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+
       for (const e of airport.edges) {
         if (e.kind === "gate_link") continue;
         const a = nodeById.get(e.from);
@@ -252,18 +271,33 @@ export function TowerCabView({ airport, aircraft, selectedCallsign, onSelectAirc
       }
       ctx.globalAlpha = 1;
 
-      ctx.fillStyle = "#fff6e5";
-      ctx.font = "bold 11px monospace";
-      for (const r of airport.runways) {
-        const start = nodeById.get(r.node_start);
-        const end = nodeById.get(r.node_end);
-        if (start && r.ends[0]) {
-          const { sx, sy } = toScreen(start.x, start.y);
-          ctx.fillText(r.ends[0], sx + 6, sy);
-        }
-        if (end && r.ends[1]) {
-          const { sx, sy } = toScreen(end.x, end.y);
-          ctx.fillText(r.ends[1], sx + 6, sy);
+      const showLabels = getShowLabels();
+      const datablockMode = getDatablockMode();
+
+      ctx.fillStyle = DIAGRAM_COLOR;
+      for (const p of airport.parking_positions) {
+        const n = nodeById.get(p.node);
+        if (!n) continue;
+        const { sx, sy } = toScreen(n.x, n.y);
+        ctx.beginPath();
+        ctx.arc(sx, sy, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      if (showLabels) {
+        ctx.fillStyle = "#fff6e5";
+        ctx.font = "bold 11px monospace";
+        for (const r of airport.runways) {
+          const start = nodeById.get(r.node_start);
+          const end = nodeById.get(r.node_end);
+          if (start && r.ends[0]) {
+            const { sx, sy } = toScreen(start.x, start.y);
+            ctx.fillText(r.ends[0], sx + 6, sy);
+          }
+          if (end && r.ends[1]) {
+            const { sx, sy } = toScreen(end.x, end.y);
+            ctx.fillText(r.ends[1], sx + 6, sy);
+          }
         }
       }
 
@@ -291,26 +325,28 @@ export function TowerCabView({ airport, aircraft, selectedCallsign, onSelectAirc
           ctx.stroke();
         }
 
-        const leaderEnd = { x: sx + 16, y: sy - 16 };
-        ctx.strokeStyle = color;
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(sx + 5, sy - 5);
-        ctx.lineTo(leaderEnd.x, leaderEnd.y);
-        ctx.stroke();
+        if (datablockMode === "all" || isSelected) {
+          const leaderEnd = { x: sx + 16, y: sy - 16 };
+          ctx.strokeStyle = color;
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(sx + 5, sy - 5);
+          ctx.lineTo(leaderEnd.x, leaderEnd.y);
+          ctx.stroke();
 
-        ctx.fillStyle = color;
-        ctx.font = "10px monospace";
-        ctx.shadowColor = "rgba(0,0,0,0.9)";
-        ctx.shadowBlur = 2;
-        ctx.fillText(ac.callsign, leaderEnd.x + 2, leaderEnd.y - 2);
-        ctx.fillText(ac.aircraft_type, leaderEnd.x + 2, leaderEnd.y + 9);
-        ctx.fillText(
-          destTag(ac.rule === "Departure" ? ac.destination : ac.origin),
-          leaderEnd.x + 2,
-          leaderEnd.y + 20,
-        );
-        ctx.shadowBlur = 0;
+          ctx.fillStyle = color;
+          ctx.font = "10px monospace";
+          ctx.shadowColor = "rgba(0,0,0,0.9)";
+          ctx.shadowBlur = 2;
+          ctx.fillText(ac.callsign, leaderEnd.x + 2, leaderEnd.y - 2);
+          ctx.fillText(ac.aircraft_type, leaderEnd.x + 2, leaderEnd.y + 9);
+          ctx.fillText(
+            destTag(ac.rule === "Departure" ? ac.destination : ac.origin),
+            leaderEnd.x + 2,
+            leaderEnd.y + 20,
+          );
+          ctx.shadowBlur = 0;
+        }
       }
 
       ctx.restore();

@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { AircraftSnapshot, AirportData, Clearance, ControllerRole } from "../types";
 import { frequencyFor } from "../frequencies";
-import { startListening, stopListeningAndTranscribe } from "../stt";
-import { isSttEnabled } from "../voiceSettings";
+import { isRecording, startListening, stopListeningAndTranscribe } from "../stt";
+import { getPttKey, isSttEnabled } from "../voiceSettings";
 
 interface Props {
   airport: AirportData;
@@ -65,23 +65,29 @@ export function ClearancePanel({
 
   const [recording, setRecording] = useState(false);
   const [heard, setHeard] = useState<string | null>(null);
+  const startingRef = useRef(false);
 
   const issue = (clearance: Clearance) => {
     if (!selectedCallsign) return;
     onIssue(selectedCallsign, clearance);
   };
 
-  const toggleMic = async () => {
-    if (!recording) {
-      setHeard(null);
-      try {
-        await startListening();
-        setRecording(true);
-      } catch (e) {
-        setHeard(`mic error: ${e}`);
-      }
-      return;
+  const beginRecording = async () => {
+    if (isRecording() || startingRef.current) return;
+    startingRef.current = true;
+    setHeard(null);
+    try {
+      await startListening();
+      setRecording(true);
+    } catch (e) {
+      setHeard(`mic error: ${e}`);
+    } finally {
+      startingRef.current = false;
     }
+  };
+
+  const endRecording = async () => {
+    if (!isRecording()) return;
     setRecording(false);
     try {
       const text = await stopListeningAndTranscribe();
@@ -90,6 +96,38 @@ export function ClearancePanel({
       setHeard(`${e}`);
     }
   };
+
+  const toggleMic = () => {
+    if (isRecording()) endRecording();
+    else beginRecording();
+  };
+
+  useEffect(() => {
+    if (!isSttEnabled()) return;
+    const key = getPttKey();
+    if (!key) return;
+
+    const isTyping = (target: EventTarget | null) =>
+      target instanceof HTMLElement && (target.tagName === "INPUT" || target.tagName === "SELECT" || target.tagName === "TEXTAREA");
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.code !== key || e.repeat || isTyping(e.target)) return;
+      e.preventDefault();
+      beginRecording();
+    };
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (e.code !== key) return;
+      e.preventDefault();
+      endRecording();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keyup", onKeyUp);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", onKeyUp);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="clearance-panel">

@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import type { AirportData, AircraftSnapshot } from "../types";
+import { getDatablockMode, getShowLabels } from "../displaySettings";
 
 interface Props {
   airport: AirportData;
@@ -187,6 +188,9 @@ export function SurfaceDisplay({ airport, aircraft, selectedCallsign, onSelectAi
         ctx.setLineDash([]);
       }
 
+      const showLabels = getShowLabels();
+      const datablockMode = getDatablockMode();
+
       ctx.fillStyle = "#cfe8d8";
       for (const p of airport.parking_positions) {
         const n = nodeById.get(p.node);
@@ -197,18 +201,20 @@ export function SurfaceDisplay({ airport, aircraft, selectedCallsign, onSelectAi
         ctx.fill();
       }
 
-      ctx.fillStyle = "#eafff4";
-      ctx.font = "bold 11px monospace";
-      for (const r of airport.runways) {
-        const start = nodeById.get(r.node_start);
-        const end = nodeById.get(r.node_end);
-        if (start && r.ends[0]) {
-          const { sx, sy } = toScreen(start.x, start.y);
-          ctx.fillText(r.ends[0], sx + 6, sy);
-        }
-        if (end && r.ends[1]) {
-          const { sx, sy } = toScreen(end.x, end.y);
-          ctx.fillText(r.ends[1], sx + 6, sy);
+      if (showLabels) {
+        ctx.fillStyle = "#eafff4";
+        ctx.font = "bold 11px monospace";
+        for (const r of airport.runways) {
+          const start = nodeById.get(r.node_start);
+          const end = nodeById.get(r.node_end);
+          if (start && r.ends[0]) {
+            const { sx, sy } = toScreen(start.x, start.y);
+            ctx.fillText(r.ends[0], sx + 6, sy);
+          }
+          if (end && r.ends[1]) {
+            const { sx, sy } = toScreen(end.x, end.y);
+            ctx.fillText(r.ends[1], sx + 6, sy);
+          }
         }
       }
 
@@ -238,24 +244,28 @@ export function SurfaceDisplay({ airport, aircraft, selectedCallsign, onSelectAi
 
         // Leader line + stacked 3-line datablock, offset to the upper
         // right, matching the real surface-radar datablock convention.
-        const leaderEnd = { x: sx + 16, y: sy - 16 };
-        ctx.strokeStyle = color;
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(sx + 5, sy - 5);
-        ctx.lineTo(leaderEnd.x, leaderEnd.y);
-        ctx.stroke();
+        // "Selected only" mode keeps the glyphs but drops the clutter of a
+        // full datablock for every aircraft on a busy field.
+        if (datablockMode === "all" || isSelected) {
+          const leaderEnd = { x: sx + 16, y: sy - 16 };
+          ctx.strokeStyle = color;
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(sx + 5, sy - 5);
+          ctx.lineTo(leaderEnd.x, leaderEnd.y);
+          ctx.stroke();
 
-        ctx.fillStyle = color;
-        ctx.font = "10px monospace";
-        ctx.textBaseline = "alphabetic";
-        ctx.fillText(ac.callsign, leaderEnd.x + 2, leaderEnd.y - 2);
-        ctx.fillText(ac.aircraft_type, leaderEnd.x + 2, leaderEnd.y + 9);
-        ctx.fillText(
-          destTag(ac.rule === "Departure" ? ac.destination : ac.origin),
-          leaderEnd.x + 2,
-          leaderEnd.y + 20,
-        );
+          ctx.fillStyle = color;
+          ctx.font = "10px monospace";
+          ctx.textBaseline = "alphabetic";
+          ctx.fillText(ac.callsign, leaderEnd.x + 2, leaderEnd.y - 2);
+          ctx.fillText(ac.aircraft_type, leaderEnd.x + 2, leaderEnd.y + 9);
+          ctx.fillText(
+            destTag(ac.rule === "Departure" ? ac.destination : ac.origin),
+            leaderEnd.x + 2,
+            leaderEnd.y + 20,
+          );
+        }
       }
 
       ctx.restore();
