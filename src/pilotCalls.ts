@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { SimEvent } from "./types";
 import { getTtsRate, getTtsVoiceName, isReadbackEnabled } from "./voiceSettings";
+import { spokenLine } from "./speech";
 
 /** Pilots call up on their own the moment they're ready - at the gate
  * requesting pushback, holding short ready for departure, vacating the
@@ -41,7 +42,7 @@ async function speakPilotCall(ev: SimEvent) {
     return;
   }
 
-  const text = `${ev.callsign}, ${ev.message}.`;
+  const text = spokenLine(ev.callsign, ev.message);
   const utter = new SpeechSynthesisUtterance(text);
   utter.rate = getTtsRate();
   const voiceName = getTtsVoiceName();

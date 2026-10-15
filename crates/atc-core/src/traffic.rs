@@ -1,38 +1,101 @@
 use crate::aircraft::AircraftState;
 use crate::sim::{SimEvent, Simulation};
-use rand::seq::SliceRandom;
+use rand::seq::{IteratorRandom, SliceRandom};
 use rand::Rng;
 
-const AIRLINES: &[(&str, &str)] = &[
-    ("SKW", "Skywest"),
+/// (ICAO airline code, telephony/brand name spoken on the radio)
+pub type Airline = (&'static str, &'static str);
+
+const US_AIRLINES: &[Airline] = &[
     ("AAL", "American"),
     ("UAL", "United"),
-    ("JBU", "JetBlue"),
+    ("DAL", "Delta"),
     ("SWA", "Southwest"),
-    ("SCX", "SunCountry"),
+    ("JBU", "JetBlue"),
+    ("ASA", "Alaska"),
+    ("FFT", "Frontier"),
+    ("SKW", "SkyWest"),
 ];
+
+const EUROPE_AIRLINES: &[Airline] = &[
+    ("RYR", "Ryanair"),
+    ("EZY", "EasyJet"),
+    ("BAW", "Speedbird"),
+    ("DLH", "Lufthansa"),
+    ("AFR", "Airfrance"),
+    ("KLM", "KLM"),
+    ("SAS", "Scandinavian"),
+    ("FIN", "Finnair"),
+    ("WZZ", "Wizzair"),
+    ("NAX", "Norwegian"),
+    ("EIN", "Shamrock"),
+    ("VLG", "Vueling"),
+];
+
+const TURKEY_AIRLINES: &[Airline] = &[("THY", "Turkish"), ("PGT", "Sunturk")];
+
+const UAE_AIRLINES: &[Airline] = &[
+    ("UAE", "Emirates"),
+    ("ETD", "Etihad"),
+    ("FDB", "Flydubai"),
+];
+
+const JAPAN_AIRLINES: &[Airline] = &[("ANA", "Allnippon"), ("JAL", "Japanair"), ("SKY", "Skymark")];
+
+const US_AIRPORTS: &[&str] = &["KLAX", "KSFO", "KPHX", "KDEN", "KSEA", "KSAN", "KOAK", "KLAS", "KJFK", "KORD", "KATL", "KDFW"];
+const EUROPE_AIRPORTS: &[&str] = &[
+    "EGLL", "EGKK", "EGCC", "EDDF", "ENGM", "ESSA", "EFHK", "EKCH", "EETN", "EVRA", "EYVI", "EIDW",
+];
+const TURKEY_AIRPORTS: &[&str] = &["LTFM", "EGLL", "EDDF", "OMDB"];
+const UAE_AIRPORTS: &[&str] = &["OMDB", "LTFM", "EGLL", "EDDF"];
+const JAPAN_AIRPORTS: &[&str] = &["RJTT", "RJAA", "RJBB", "RJCC"];
 
 const AIRCRAFT_TYPES: &[&str] = &["A320", "B738", "E175", "CRJ9", "A319", "B739"];
 
-const OTHER_AIRPORTS: &[&str] = &["KLAX", "KSFO", "KPHX", "KDEN", "KSEA", "KSAN", "KOAK", "KLAS"];
+/// Real airlines fly where their network actually goes - American doesn't
+/// serve Kaunas and Ryanair doesn't serve JFK - so the airline (and the
+/// plausible other end of the flight) is picked from a region-appropriate
+/// pool keyed off the controlled airport's own ICAO prefix, not a single
+/// global list.
+fn region_pools(icao: &str) -> (&'static [Airline], &'static [&'static str]) {
+    let icao = icao.to_uppercase();
+    if icao.starts_with("LT") {
+        (TURKEY_AIRLINES, TURKEY_AIRPORTS)
+    } else if icao.starts_with("OM") {
+        (UAE_AIRLINES, UAE_AIRPORTS)
+    } else if icao.starts_with('R') {
+        (JAPAN_AIRLINES, JAPAN_AIRPORTS)
+    } else if icao.starts_with('K') || icao.starts_with('C') {
+        (US_AIRLINES, US_AIRPORTS)
+    } else if icao.starts_with('E') || icao.starts_with('L') {
+        (EUROPE_AIRLINES, EUROPE_AIRPORTS)
+    } else {
+        (US_AIRLINES, US_AIRPORTS)
+    }
+}
 
 /// Procedurally generates a plausible mix of departure and arrival traffic:
-/// picks a random free gate, airline/type/other-airport combination, and
-/// spawns either a departure or an arrival on the simulation. Gate
-/// occupancy is derived live from the simulation's current aircraft each
-/// time (rather than tracked separately), so a gate frees up automatically
-/// the moment its aircraft departs or a parked arrival despawns - no manual
-/// release bookkeeping to get out of sync.
+/// picks a random free gate, airline/type/other-airport combination from
+/// this airport's region, and spawns either a departure or an arrival on
+/// the simulation. Gate occupancy is derived live from the simulation's
+/// current aircraft each time (rather than tracked separately), so a gate
+/// frees up automatically the moment its aircraft departs or a parked
+/// arrival despawns - no manual release bookkeeping to get out of sync.
 pub struct TrafficGenerator {
     pub next_spawn_in_s: f64,
     pub spawn_interval_s: f64,
+    airlines: &'static [Airline],
+    other_airports: &'static [&'static str],
 }
 
 impl TrafficGenerator {
-    pub fn new(spawn_interval_s: f64) -> Self {
+    pub fn new(spawn_interval_s: f64, airport_icao: &str) -> Self {
+        let (airlines, other_airports) = region_pools(airport_icao);
         TrafficGenerator {
             next_spawn_in_s: spawn_interval_s,
             spawn_interval_s,
+            airlines,
+            other_airports,
         }
     }
 
@@ -84,11 +147,16 @@ impl TrafficGenerator {
             return None;
         };
 
-        let (airline, _name) = AIRLINES.choose(&mut rng).unwrap();
+        let (airline, _name) = self.airlines.choose(&mut rng).unwrap();
         let flight_no: u32 = rng.gen_range(100..9999);
         let callsign = format!("{airline}{flight_no}");
         let ac_type = AIRCRAFT_TYPES.choose(&mut rng).unwrap();
-        let other_airport = OTHER_AIRPORTS.choose(&mut rng).unwrap();
+        let other_airport = self
+            .other_airports
+            .iter()
+            .filter(|a| *a != &sim.airport.icao)
+            .choose(&mut rng)
+            .unwrap_or(&self.other_airports[0]);
 
         let is_arrival = rng.gen_bool(0.5);
         if is_arrival {

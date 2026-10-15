@@ -30,18 +30,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          # A self-signed code-signing certificate, not an Apple Developer
-          # ID one - there's no paid Apple Developer account for this
-          # project. It's still a real certificate (not ad-hoc), so it
-          # gives the app a *stable* identity across builds, which macOS's
-          # TCC (app permissions, e.g. the microphone) and Dock both key
-          # their per-app state to. It does NOT get rid of the Gatekeeper
-          # "unidentified developer" warning on first launch - only a paid
-          # Developer ID + notarization does that - so users still need to
-          # right-click → Open (or allow it in System Settings) once.
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: "Holdshort Self-Signed"
         with:
           tagName: ${{ github.ref_name }}
           releaseName: "Ground Control ${{ github.ref_name }}"

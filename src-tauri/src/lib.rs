@@ -94,7 +94,7 @@ fn start_session(state: tauri::State<AppState>, icao: String) -> Result<(), Stri
     let spawn_interval_s = (2200.0 / gate_count).clamp(40.0, 150.0);
 
     *state.sim.lock().unwrap() = Simulation::new(airport);
-    *state.traffic.lock().unwrap() = TrafficGenerator::new(spawn_interval_s);
+    *state.traffic.lock().unwrap() = TrafficGenerator::new(spawn_interval_s, &icao);
     *state.runway.lock().unwrap() = ActiveRunway {
         rwy_ref,
         departure_end,
@@ -514,7 +514,7 @@ pub fn run() {
             let default_airport =
                 airports::load(&data_dir, "KBUR").expect("bundled KBUR surface data loads");
             let sim = Simulation::new(default_airport);
-            let traffic = TrafficGenerator::new(45.0);
+            let traffic = TrafficGenerator::new(45.0, "KBUR");
             app.manage(AppState {
                 sim: Mutex::new(sim),
                 traffic: Mutex::new(traffic),

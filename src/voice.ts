@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { Clearance } from "./types";
 import { getOllamaModel, getTtsRate, getTtsVoiceName } from "./voiceSettings";
+import { humanizeRadioText, spellCallsign } from "./speech";
 
 /** Plain-English phrase for a clearance, used both as the AI prompt seed
  * and as the spoken fallback when no local AI is available. */
@@ -51,12 +52,24 @@ async function getReadbackText(callsign: string, phrase: string): Promise<string
   return fallback;
 }
 
+/** Makes whichever text ends up getting spoken - AI-phrased or the plain
+ * template - sound like actual radio traffic: the callsign swapped for its
+ * spoken form everywhere it appears (an AI readback repeats it inline, not
+ * just at the end like the template), then every remaining runway/gate/
+ * flight-number digit spelled out properly. */
+function speakableText(callsign: string, text: string): string {
+  const spelled = spellCallsign(callsign);
+  const withCallsign = text.replace(new RegExp(callsign, "gi"), spelled);
+  return humanizeRadioText(withCallsign);
+}
+
 /** Speaks a pilot readback for the given clearance via the browser's TTS
  * engine, ringing the aircraft on the display for the duration (the
  * "speaking" indicator) via the backend's is_speaking flag. */
 export async function speakReadback(callsign: string, clearance: Clearance) {
   const phrase = describeClearance(clearance);
-  const text = await getReadbackText(callsign, phrase);
+  const rawText = await getReadbackText(callsign, phrase);
+  const text = speakableText(callsign, rawText);
 
   if (!("speechSynthesis" in window)) return;
   const utter = new SpeechSynthesisUtterance(text);

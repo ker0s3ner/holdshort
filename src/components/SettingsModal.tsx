@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { getVersion } from "@tauri-apps/api/app";
 import { invoke } from "@tauri-apps/api/core";
 import { Modal } from "./Modal";
+import { isRealisticVoice } from "../speech";
 import {
   getMicDeviceId,
   getOllamaModel,
@@ -46,7 +47,7 @@ export function SettingsModal({ onClose, onRerunSetup }: Props) {
 
   useEffect(() => {
     if (!("speechSynthesis" in window)) return;
-    const load = () => setVoices(window.speechSynthesis.getVoices());
+    const load = () => setVoices(window.speechSynthesis.getVoices().filter(isRealisticVoice));
     load();
     window.speechSynthesis.onvoiceschanged = load;
   }, []);
