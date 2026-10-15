@@ -165,6 +165,34 @@ html, body, #root {
   color: #ff8a80;
 }
 
+.update-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 6px 12px;
+  background: #1a2e20;
+  border-bottom: 1px solid #2f4a3a;
+  color: #9adbb6;
+  font-size: 12px;
+}
+
+.update-banner.error {
+  background: #2e1a1a;
+  border-bottom-color: #4a2f2f;
+  color: #ff8a80;
+}
+
+.update-banner button {
+  background: #142019;
+  border: 1px solid #28402f;
+  color: #7fffb0;
+  padding: 4px 10px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 11px;
+}
+
 .attribution {
   padding: 4px 12px;
   font-size: 10px;

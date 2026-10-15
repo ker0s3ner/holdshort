@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { SurfaceDisplay } from "./components/SurfaceDisplay";
 import { ClearancePanel } from "./components/ClearancePanel";
+import { UpdateBanner } from "./components/UpdateBanner";
 import type { AircraftSnapshot, AirportData, Clearance, SimTick } from "./types";
 import "./App.css";
 
@@ -48,6 +49,7 @@ function App() {
 
   return (
     <div className="app-shell">
+      <UpdateBanner />
       <div className="top-bar">
         <span className="title">{airport.name} ({airport.icao})</span>
         <span className="clock">SIM T+{pad(hh)}:{pad(mm)}:{pad(ss)}</span>
