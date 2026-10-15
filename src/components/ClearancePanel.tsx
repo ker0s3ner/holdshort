@@ -1,17 +1,53 @@
-import type { AircraftSnapshot, AirportData, Clearance } from "../types";
+import type { AircraftSnapshot, AirportData, Clearance, ControllerRole } from "../types";
 
 interface Props {
   airport: AirportData;
   aircraft: AircraftSnapshot[];
+  role: ControllerRole;
   selectedCallsign: string | null;
   onSelect: (callsign: string) => void;
   onIssue: (callsign: string, clearance: Clearance) => void;
 }
 
-/** Ground/tower clearance strip: pick an aircraft, issue it a clearance
- * using the same phraseology a controller would use on frequency. */
-export function ClearancePanel({ airport, aircraft, selectedCallsign, onSelect, onIssue }: Props) {
+interface ClearanceButton {
+  label: string;
+  clearance: Clearance;
+}
+
+/** Each position only gets the clearances a real controller in that chair
+ * would issue. Approach has no direct surface control yet — arrivals are
+ * procedurally spawned onto final — so it's read-only for now. */
+const BUTTONS_BY_ROLE: Record<ControllerRole, ClearanceButton[]> = {
+  ramp: [
+    { label: "Pushback Approved", clearance: "PushbackApproved" },
+    { label: "Hold Position", clearance: "HoldPosition" },
+    { label: "Cancel Clearance", clearance: "CancelClearance" },
+  ],
+  ground: [
+    { label: "Taxi to Runway", clearance: { TaxiToRunway: { via_hold_short: null } } },
+    { label: "Resume Taxi", clearance: "ResumeTaxi" },
+    { label: "Hold Position", clearance: "HoldPosition" },
+    { label: "Cancel Clearance", clearance: "CancelClearance" },
+  ],
+  tower: [
+    { label: "Line Up and Wait", clearance: "LineUpAndWait" },
+    { label: "Cleared for Takeoff", clearance: "ClearedForTakeoff" },
+    { label: "Cleared to Land", clearance: "ClearedToLand" },
+    { label: "Go Around", clearance: "GoAround" },
+  ],
+  approach: [],
+};
+
+export function ClearancePanel({
+  airport,
+  aircraft,
+  role,
+  selectedCallsign,
+  onSelect,
+  onIssue,
+}: Props) {
   const selected = aircraft.find((a) => a.callsign === selectedCallsign) ?? null;
+  const buttons = BUTTONS_BY_ROLE[role];
 
   const issue = (clearance: Clearance) => {
     if (!selectedCallsign) return;
@@ -20,7 +56,9 @@ export function ClearancePanel({ airport, aircraft, selectedCallsign, onSelect, 
 
   return (
     <div className="clearance-panel">
-      <div className="panel-header">{airport.icao} GROUND / TOWER</div>
+      <div className="panel-header">
+        {airport.icao} {role.toUpperCase()}
+      </div>
 
       <div className="aircraft-list">
         {aircraft.length === 0 && <div className="muted">No traffic yet…</div>}
@@ -37,42 +75,48 @@ export function ClearancePanel({ airport, aircraft, selectedCallsign, onSelect, 
         ))}
       </div>
 
-      {selected && (
+      {role === "approach" && (
+        <div className="clearance-detail">
+          <p className="muted settings-note">
+            Approach control is a preview: arrivals are generated directly onto final rather than
+            vectored. Sequencing and speed/altitude control are planned, not simulated yet.
+          </p>
+        </div>
+      )}
+
+      {selected && role !== "approach" && (
         <div className="clearance-detail">
           <div className="detail-line">
             {selected.callsign} · {selected.aircraft_type} · gate {selected.assigned_gate} · rwy{" "}
             {selected.assigned_runway} · dest {selected.destination}
           </div>
           <div className="clearance-buttons">
-            <button onClick={() => issue("PushbackApproved")}>Pushback Approved</button>
-            <button onClick={() => issue({ TaxiToRunway: { via_hold_short: null } })}>
-              Taxi to Runway
-            </button>
-            <button onClick={() => issue("ResumeTaxi")}>Resume Taxi</button>
-            <button onClick={() => issue("LineUpAndWait")}>Line Up and Wait</button>
-            <button onClick={() => issue("ClearedForTakeoff")}>Cleared for Takeoff</button>
-            <button onClick={() => issue("ClearedToLand")}>Cleared to Land</button>
-            <button onClick={() => issue("HoldPosition")}>Hold Position</button>
-            <button onClick={() => issue("CancelClearance")}>Cancel Clearance</button>
+            {buttons.map((b) => (
+              <button key={b.label} onClick={() => issue(b.clearance)}>
+                {b.label}
+              </button>
+            ))}
           </div>
-          <div className="gate-picker">
-            <span>Taxi to gate:</span>
-            <select
-              onChange={(e) => {
-                if (e.target.value) issue({ TaxiToGate: { gate_ref: e.target.value } });
-              }}
-              value=""
-            >
-              <option value="" disabled>
-                select gate
-              </option>
-              {airport.parking_positions.map((p) => (
-                <option key={p.id} value={p.ref}>
-                  {p.ref}
+          {role === "ground" && (
+            <div className="gate-picker">
+              <span>Taxi to gate:</span>
+              <select
+                onChange={(e) => {
+                  if (e.target.value) issue({ TaxiToGate: { gate_ref: e.target.value } });
+                }}
+                value=""
+              >
+                <option value="" disabled>
+                  select gate
                 </option>
-              ))}
-            </select>
-          </div>
+                {airport.parking_positions.map((p) => (
+                  <option key={p.id} value={p.ref}>
+                    {p.ref}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
       )}
     </div>

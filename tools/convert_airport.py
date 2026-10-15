@@ -2,6 +2,21 @@ import json
 import math
 import sys
 
+def parse_width(value):
+    """OSM width tags are free-text and sometimes carry units (e.g. '61',
+    '61 m', '200 ft'); normalize to meters where we can, else drop it."""
+    if value is None:
+        return None
+    text = str(value).strip().lower()
+    feet = text.endswith("ft")
+    text = text.replace("m", "").replace("ft", "").strip()
+    try:
+        num = float(text)
+    except ValueError:
+        return None
+    return round(num * 0.3048, 2) if feet else num
+
+
 def load(path):
     with open(path) as f:
         return json.load(f)
@@ -75,7 +90,7 @@ def main(src_path, icao, name, out_path):
         if aeroway == "runway":
             add_edges_for_way(w, "runway", t.get("ref", ""))
             ref = t.get("ref", "")
-            meta = runway_meta.setdefault(ref, {"width": t.get("width"), "surface": t.get("surface"), "segments": []})
+            meta = runway_meta.setdefault(ref, {"width": parse_width(t.get("width")), "surface": t.get("surface"), "segments": []})
             meta["segments"].append([n for n in w["nodes"] if n in nodes])
         elif aeroway in ("taxiway", "taxilane"):
             add_edges_for_way(w, aeroway, t.get("ref", ""))
@@ -88,6 +103,10 @@ def main(src_path, icao, name, out_path):
     # only once across all of that runway's segment endpoints.
     runways = []
     for ref, meta in runway_meta.items():
+        # Skip runway ways OSM left untagged or without a proper "A/B"
+        # identifier pair - not usable as a named ATC runway end.
+        if "/" not in ref:
+            continue
         endpoint_counts = {}
         for seg in meta["segments"]:
             if not seg:

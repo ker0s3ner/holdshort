@@ -16,6 +16,32 @@ const EDGE_COLOR: Record<string, string> = {
   gate_link: "#2a3a30",
 };
 
+/** Draws a small plane silhouette centered at the origin, nose pointing up
+ * (0, -1), at a scale readable on the SMR display. Caller handles
+ * translate/rotate/fillStyle. */
+function drawPlaneGlyph(ctx: CanvasRenderingContext2D) {
+  const s = 0.055;
+  ctx.beginPath();
+  ctx.moveTo(0 * s, -140 * s);
+  ctx.lineTo(34 * s, 60 * s);
+  ctx.lineTo(120 * s, 118 * s);
+  ctx.lineTo(120 * s, 150 * s);
+  ctx.lineTo(34 * s, 122 * s);
+  ctx.lineTo(18 * s, 230 * s);
+  ctx.lineTo(62 * s, 268 * s);
+  ctx.lineTo(62 * s, 296 * s);
+  ctx.lineTo(0 * s, 270 * s);
+  ctx.lineTo(-62 * s, 296 * s);
+  ctx.lineTo(-62 * s, 268 * s);
+  ctx.lineTo(-18 * s, 230 * s);
+  ctx.lineTo(-34 * s, 122 * s);
+  ctx.lineTo(-120 * s, 150 * s);
+  ctx.lineTo(-120 * s, 118 * s);
+  ctx.lineTo(-34 * s, 60 * s);
+  ctx.closePath();
+  ctx.fill();
+}
+
 const EDGE_WIDTH: Record<string, number> = {
   runway: 5,
   stopway: 3,
@@ -58,6 +84,29 @@ export function SurfaceDisplay({ airport, aircraft, selectedCallsign, onSelectAi
     window.addEventListener("resize", resize);
 
     const nodeById = new Map(airport.nodes.map((n) => [n.id, n]));
+
+    // Airports range from a small single-runway field to a sprawling hub
+    // several kilometers across, so the initial view must fit to the
+    // actual airport extent rather than assume a fixed scale.
+    {
+      const xs = airport.nodes.map((n) => n.x);
+      const ys = airport.nodes.map((n) => n.y);
+      const minX = Math.min(...xs);
+      const maxX = Math.max(...xs);
+      const minY = Math.min(...ys);
+      const maxY = Math.max(...ys);
+      const spanX = Math.max(maxX - minX, 1);
+      const spanY = Math.max(maxY - minY, 1);
+      const w = canvas.width / dpr;
+      const h = canvas.height / dpr;
+      const padding = 0.85;
+      const fitScale = Math.min((w / spanX) * padding, (h / spanY) * padding);
+      viewRef.current = {
+        scale: fitScale,
+        panX: -(minX + maxX) / 2,
+        panY: -(minY + maxY) / 2,
+      };
+    }
 
     const toScreen = (x: number, y: number) => {
       const { scale, panX, panY } = viewRef.current;
@@ -119,16 +168,12 @@ export function SurfaceDisplay({ airport, aircraft, selectedCallsign, onSelectAi
       for (const ac of aircraftRef.current) {
         const { sx, sy } = toScreen(ac.x, ac.y);
         const isSelected = ac.callsign === selectedRef.current;
+        const isArrival = ac.state === "LandingRollout" || ac.state === "OnApproach";
         ctx.save();
         ctx.translate(sx, sy);
         ctx.rotate((ac.heading_deg * Math.PI) / 180);
-        ctx.fillStyle = isSelected ? "#ffdf5e" : "#7fffb0";
-        ctx.beginPath();
-        ctx.moveTo(0, -6);
-        ctx.lineTo(4, 5);
-        ctx.lineTo(-4, 5);
-        ctx.closePath();
-        ctx.fill();
+        ctx.fillStyle = isSelected ? "#ffdf5e" : isArrival ? "#7fc8ff" : "#7fffb0";
+        drawPlaneGlyph(ctx);
         ctx.restore();
 
         ctx.fillStyle = isSelected ? "#ffdf5e" : "#bdf2d2";

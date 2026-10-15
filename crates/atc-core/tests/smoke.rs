@@ -65,6 +65,34 @@ fn full_departure_cycle_on_real_kbur_layout() {
 }
 
 #[test]
+fn every_bundled_airport_is_routable() {
+    for summary in airports::available_airports() {
+        let airport = airports::load(&summary.icao)
+            .unwrap_or_else(|e| panic!("{} failed to load: {e}", summary.icao));
+        assert!(
+            !airport.runways.is_empty(),
+            "{} has no runways",
+            summary.icao
+        );
+        assert!(
+            !airport.parking_positions.is_empty(),
+            "{} has no parking positions",
+            summary.icao
+        );
+
+        let runway = &airport.runways[0];
+        let departure_end = runway.ends[0].clone();
+        let rwy_ref = runway.ref_.clone();
+        let gate = airport.parking_positions[0].ref_.clone();
+
+        let mut sim = Simulation::new(airport);
+        sim.spawn_departure("ROUTETEST", "A320", &gate, &rwy_ref, &departure_end)
+            .unwrap_or_else(|e| panic!("{}: no route from {gate} to {rwy_ref}: {e}", summary.icao));
+        assert!(sim.aircraft["ROUTETEST"].route.len() > 1, "{}", summary.icao);
+    }
+}
+
+#[test]
 fn arrival_taxis_from_runway_to_gate() {
     let airport = airports::load("KBUR").unwrap();
     let gate = airport.parking_positions[3].ref_.clone();

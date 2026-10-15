@@ -1,10 +1,15 @@
-# Ground Control
+# Holdshort
 
 A ground-operations ATC simulator: real-world taxiway/runway/gate geometry
 (pulled from OpenStreetMap), A* taxi routing, a ground/tower clearance state
 machine, procedural AI traffic, and a Surface Movement Radar (SMR) plan-view
 display. Built with Tauri (Rust core + React/Canvas frontend). macOS
 (Apple Silicon) first; Windows later.
+
+On launch you pick an airport pack and a position (Ramp, Ground, Tower, or
+Approach — Approach is a read-only preview for now) before entering the
+session. Bundled airports: KBUR, EGKK, KJFK, KATL, OMDB, RJTT, KDFW, KORD,
+EGLL, LTFM, KLAX, EDDF.
 
 ## Project layout
 
@@ -39,16 +44,16 @@ scripts/release.sh 0.2.0
 
 This bumps the version in `package.json`, `src-tauri/tauri.conf.json`, and
 `src-tauri/Cargo.toml`, commits, tags, and pushes. Watch the build at
-https://github.com/ker0s3ner/ground-control/actions.
+https://github.com/ker0s3ner/holdshort/actions.
 
 ### Update signing key
 
 Update packages are signed with a minisign keypair generated locally
-(`.tauri/groundcontrol.key`, gitignored — **do not commit it**). The public
+(`.tauri/holdshort.key`, gitignored — **do not commit it**). The public
 key lives in `src-tauri/tauri.conf.json`. The private key and its password
 are stored as the `TAURI_SIGNING_PRIVATE_KEY` and
 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` secrets on the GitHub repo, used only by
-the release workflow. If `.tauri/groundcontrol.key` is ever lost, a new
+the release workflow. If `.tauri/holdshort.key` is ever lost, a new
 keypair must be generated and the public key in `tauri.conf.json` updated —
 existing installs won't be able to verify updates signed with a different
 key, so they'd need a manual reinstall once.

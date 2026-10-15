@@ -79,6 +79,13 @@ export interface SimTick {
   aircraft: AircraftSnapshot[];
 }
 
+export interface AirportSummary {
+  icao: string;
+  name: string;
+}
+
+export type ControllerRole = "ramp" | "ground" | "tower" | "approach";
+
 export type Clearance =
   | "PushbackApproved"
   | { TaxiToRunway: { via_hold_short: string | null } }

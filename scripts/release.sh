@@ -43,4 +43,4 @@ git push origin main
 git push origin "v$VERSION"
 
 echo "Pushed tag v$VERSION. GitHub Actions will build and publish the release:"
-echo "https://github.com/ker0s3ner/ground-control/actions"
+echo "https://github.com/ker0s3ner/holdshort/actions"

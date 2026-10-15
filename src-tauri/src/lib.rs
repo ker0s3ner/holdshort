@@ -1,3 +1,4 @@
+use atc_core::airports::AirportSummary;
 use atc_core::clearance::ClearanceCommand;
 use atc_core::{airports, AircraftState, AirportData, Simulation, TrafficGenerator};
 use serde::Serialize;
@@ -5,9 +6,16 @@ use std::sync::Mutex;
 use std::time::Duration;
 use tauri::{Emitter, Manager};
 
+struct ActiveRunway {
+    rwy_ref: String,
+    departure_end: String,
+}
+
 struct AppState {
     sim: Mutex<Simulation>,
     traffic: Mutex<TrafficGenerator>,
+    active: Mutex<bool>,
+    runway: Mutex<ActiveRunway>,
 }
 
 #[derive(Serialize, Clone)]
@@ -31,8 +39,32 @@ struct SimTick {
 }
 
 #[tauri::command]
-fn list_airports() -> Vec<&'static str> {
-    airports::available_icaos()
+fn list_airports() -> Vec<AirportSummary> {
+    airports::available_airports()
+}
+
+#[tauri::command]
+fn start_session(state: tauri::State<AppState>, icao: String) -> Result<(), String> {
+    let airport = airports::load(&icao)?;
+    let (rwy_ref, departure_end) = airport
+        .runways
+        .first()
+        .and_then(|r| r.ends.first().map(|e| (r.ref_.clone(), e.clone())))
+        .ok_or_else(|| format!("{icao} has no runways defined"))?;
+
+    *state.sim.lock().unwrap() = Simulation::new(airport);
+    *state.traffic.lock().unwrap() = TrafficGenerator::new(45.0);
+    *state.runway.lock().unwrap() = ActiveRunway {
+        rwy_ref,
+        departure_end,
+    };
+    *state.active.lock().unwrap() = true;
+    Ok(())
+}
+
+#[tauri::command]
+fn end_session(state: tauri::State<AppState>) {
+    *state.active.lock().unwrap() = false;
 }
 
 #[tauri::command]
@@ -80,12 +112,17 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .setup(|app| {
-            let airport = airports::load("KBUR").expect("bundled KBUR surface data loads");
-            let sim = Simulation::new(airport);
+            let default_airport = airports::load("KBUR").expect("bundled KBUR surface data loads");
+            let sim = Simulation::new(default_airport);
             let traffic = TrafficGenerator::new(45.0);
             app.manage(AppState {
                 sim: Mutex::new(sim),
                 traffic: Mutex::new(traffic),
+                active: Mutex::new(false),
+                runway: Mutex::new(ActiveRunway {
+                    rwy_ref: "15/33".to_string(),
+                    departure_end: "15".to_string(),
+                }),
             });
 
             let app_handle = app.handle().clone();
@@ -94,9 +131,14 @@ pub fn run() {
                 loop {
                     std::thread::sleep(Duration::from_millis(250));
                     let state = app_handle.state::<AppState>();
+                    if !*state.active.lock().unwrap() {
+                        continue;
+                    }
                     let mut sim = state.sim.lock().unwrap();
                     let mut traffic = state.traffic.lock().unwrap();
-                    traffic.tick(dt, &mut sim, "15/33", "15");
+                    let rwy = state.runway.lock().unwrap();
+                    traffic.tick(dt, &mut sim, &rwy.rwy_ref, &rwy.departure_end);
+                    drop(rwy);
                     sim.tick(dt);
                     let snapshot = build_snapshot(&sim);
                     drop(traffic);
@@ -109,6 +151,8 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             list_airports,
+            start_session,
+            end_session,
             get_airport,
             get_traffic,
             issue_clearance
