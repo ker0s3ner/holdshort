@@ -100,7 +100,7 @@ export function TopBar({ airport, role, viewMode, clock, selected, depArrOpen, o
                       setShowLabels(e.target.checked);
                     }}
                   />
-                  Runway labels
+                  Surface labels (runway/taxiway/gate)
                 </label>
                 <div className="tb-menu-item">
                   <span>Datablocks</span>

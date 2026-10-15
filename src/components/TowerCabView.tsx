@@ -172,6 +172,30 @@ export function TowerCabView({ airport, aircraft, selectedCallsign, onSelectAirc
     const nodeById = new Map(airport.nodes.map((n) => [n.id, n]));
     const tiles = loadBasemapTiles(airport, () => {});
 
+    // One label position per distinct taxiway/taxilane identifier (the
+    // centroid of all its segments' midpoints), rather than stamping the
+    // ref on every individual OSM way segment.
+    const taxiwayLabels = (() => {
+      const sums = new Map<string, { x: number; y: number; n: number }>();
+      for (const e of airport.edges) {
+        if (e.kind !== "taxiway" && e.kind !== "taxilane") continue;
+        if (!e.ref) continue;
+        const a = nodeById.get(e.from);
+        const b = nodeById.get(e.to);
+        if (!a || !b) continue;
+        const entry = sums.get(e.ref) ?? { x: 0, y: 0, n: 0 };
+        entry.x += (a.x + b.x) / 2;
+        entry.y += (a.y + b.y) / 2;
+        entry.n += 1;
+        sums.set(e.ref, entry);
+      }
+      return Array.from(sums.entries()).map(([ref, s]) => ({
+        ref,
+        x: s.x / s.n,
+        y: s.y / s.n,
+      }));
+    })();
+
     {
       const xs = airport.nodes.map((n) => n.x);
       const ys = airport.nodes.map((n) => n.y);
@@ -287,6 +311,8 @@ export function TowerCabView({ airport, aircraft, selectedCallsign, onSelectAirc
       if (showLabels) {
         ctx.fillStyle = "#fff6e5";
         ctx.font = "bold 11px monospace";
+        ctx.shadowColor = "rgba(0,0,0,0.9)";
+        ctx.shadowBlur = 2;
         for (const r of airport.runways) {
           const start = nodeById.get(r.node_start);
           const end = nodeById.get(r.node_end);
@@ -299,6 +325,24 @@ export function TowerCabView({ airport, aircraft, selectedCallsign, onSelectAirc
             ctx.fillText(r.ends[1], sx + 6, sy);
           }
         }
+
+        ctx.fillStyle = DIAGRAM_COLOR;
+        ctx.font = "bold 10px monospace";
+        for (const t of taxiwayLabels) {
+          const { sx, sy } = toScreen(t.x, t.y);
+          ctx.fillText(t.ref, sx - 4, sy - 4);
+        }
+
+        ctx.fillStyle = "#fff6e5";
+        ctx.font = "9px monospace";
+        for (const p of airport.parking_positions) {
+          if (!p.ref) continue;
+          const n = nodeById.get(p.node);
+          if (!n) continue;
+          const { sx, sy } = toScreen(n.x, n.y);
+          ctx.fillText(p.ref, sx + 4, sy + 3);
+        }
+        ctx.shadowBlur = 0;
       }
 
       for (const ac of aircraftRef.current) {

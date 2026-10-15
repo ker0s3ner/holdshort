@@ -96,6 +96,31 @@ export function SurfaceDisplay({ airport, aircraft, selectedCallsign, onSelectAi
 
     const nodeById = new Map(airport.nodes.map((n) => [n.id, n]));
 
+    // One label position per distinct taxiway/taxilane identifier (the
+    // centroid of all its segments' midpoints), rather than stamping the
+    // ref on every individual OSM way segment - a taxiway can be dozens of
+    // segments, and real surface diagrams only letter it once or twice.
+    const taxiwayLabels = (() => {
+      const sums = new Map<string, { x: number; y: number; n: number }>();
+      for (const e of airport.edges) {
+        if (e.kind !== "taxiway" && e.kind !== "taxilane") continue;
+        if (!e.ref) continue;
+        const a = nodeById.get(e.from);
+        const b = nodeById.get(e.to);
+        if (!a || !b) continue;
+        const entry = sums.get(e.ref) ?? { x: 0, y: 0, n: 0 };
+        entry.x += (a.x + b.x) / 2;
+        entry.y += (a.y + b.y) / 2;
+        entry.n += 1;
+        sums.set(e.ref, entry);
+      }
+      return Array.from(sums.entries()).map(([ref, s]) => ({
+        ref,
+        x: s.x / s.n,
+        y: s.y / s.n,
+      }));
+    })();
+
     // Airports range from a small single-runway field to a sprawling hub
     // several kilometers across, so the initial view must fit to the
     // actual airport extent rather than assume a fixed scale.
@@ -215,6 +240,23 @@ export function SurfaceDisplay({ airport, aircraft, selectedCallsign, onSelectAi
             const { sx, sy } = toScreen(end.x, end.y);
             ctx.fillText(r.ends[1], sx + 6, sy);
           }
+        }
+
+        ctx.fillStyle = "#ffd866";
+        ctx.font = "bold 10px monospace";
+        for (const t of taxiwayLabels) {
+          const { sx, sy } = toScreen(t.x, t.y);
+          ctx.fillText(t.ref, sx - 4, sy - 4);
+        }
+
+        ctx.fillStyle = "#cfe8d8";
+        ctx.font = "9px monospace";
+        for (const p of airport.parking_positions) {
+          if (!p.ref) continue;
+          const n = nodeById.get(p.node);
+          if (!n) continue;
+          const { sx, sy } = toScreen(n.x, n.y);
+          ctx.fillText(p.ref, sx + 4, sy + 3);
         }
       }
 
