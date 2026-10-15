@@ -80,7 +80,13 @@ export function ClearancePanel({
       await startListening();
       setRecording(true);
     } catch (e) {
-      setHeard(`mic error: ${e}`);
+      if (`${e}`.includes("NotAllowedError")) {
+        setHeard(
+          'mic permission denied - open Settings → "Open System Settings" next to Microphone access, turn Holdshort on, then try again'
+        );
+      } else {
+        setHeard(`mic error: ${e}`);
+      }
     } finally {
       startingRef.current = false;
     }

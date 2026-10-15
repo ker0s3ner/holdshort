@@ -349,6 +349,18 @@ async fn download_whisper_model() -> Result<(), String> {
     Ok(())
 }
 
+/// Opens System Settings straight to the Microphone privacy pane. Once the
+/// user has denied the mic prompt (or it never fired), there's no API to
+/// re-ask from inside the app - macOS only lets the user flip it back on
+/// in System Settings, so the best this app can do is take them straight
+/// there instead of making them hunt for it.
+#[tauri::command]
+fn open_microphone_settings() {
+    let _ = std::process::Command::new("open")
+        .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone")
+        .output();
+}
+
 /// After an in-place auto-update, macOS's Dock sometimes keeps pointing at
 /// the now-replaced app bundle (the icon goes stale or stops launching the
 /// new binary) because the app is ad-hoc signed rather than signed with a
@@ -541,7 +553,8 @@ pub fn run() {
             download_whisper_model,
             install_ollama,
             pull_ollama_model,
-            refresh_launch_services
+            refresh_launch_services,
+            open_microphone_settings
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

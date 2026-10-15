@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { getVersion } from "@tauri-apps/api/app";
+import { invoke } from "@tauri-apps/api/core";
 import { Modal } from "./Modal";
 import {
   getMicDeviceId,
@@ -165,6 +166,18 @@ export function SettingsModal({ onClose, onRerunSetup }: Props) {
           }}
         />
       </div>
+      <div className="settings-row">
+        <span>Microphone access</span>
+        <button onClick={() => invoke("open_microphone_settings")}>
+          Open System Settings
+        </button>
+      </div>
+      <p className="muted settings-note">
+        If push-to-talk says "permission denied" or "NotAllowedError", macOS has the mic blocked
+        for Holdshort - the button above jumps straight to System Settings → Privacy &amp;
+        Security → Microphone. Turn Holdshort on there, then try again (no relaunch needed unless
+        it was never listed at all, in which case relaunch once so macOS adds it to the list).
+      </p>
       <label className="field-label">
         Input device
         <select

@@ -181,6 +181,14 @@ function VoiceStep({ onNext, onSkip }: { onNext: () => void; onSkip: () => void 
           )}
         </div>
       </div>
+      <p className="muted settings-note">
+        macOS also needs its own mic permission for push-to-talk - if it ever says "permission
+        denied", open{" "}
+        <button className="inline-link" onClick={() => invoke("open_microphone_settings")}>
+          System Settings → Microphone
+        </button>{" "}
+        and turn Holdshort on there.
+      </p>
       {error && <p className="muted settings-note">⚠ {error}</p>}
       {sttReady && <p className="muted settings-note">Speech-to-text ready - push-to-talk is on.</p>}
       {aiReady && <p className="muted settings-note">AI readback ready.</p>}
