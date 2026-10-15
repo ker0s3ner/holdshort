@@ -1,86 +1,117 @@
-import { useEffect, useState } from "react";
-import type { AirportSummary, ControllerRole } from "../types";
+import { useRef, useState } from "react";
+import type { AirportSummary } from "../types";
+import type { Profile } from "../profiles";
+import {
+  deleteProfile,
+  duplicateProfile,
+  exportProfile,
+  importProfile,
+  loadProfiles,
+} from "../profiles";
 
 interface Props {
   airports: AirportSummary[];
-  onStart: (icao: string, role: ControllerRole) => void;
+  onStart: (profile: Profile) => void;
+  onNewProfile: () => void;
   onOpenSettings: () => void;
-  onOpenEditPacks: () => void;
+  onOpenManageAirports: () => void;
 }
 
-const ROLES: { id: ControllerRole; label: string; blurb: string }[] = [
-  { id: "ramp", label: "Ramp", blurb: "Pushback & engine start, gate/ramp area" },
-  { id: "ground", label: "Ground", blurb: "Taxi routing, runway hold points" },
-  { id: "tower", label: "Tower", blurb: "Runway operations, line-up, takeoff/landing" },
-  { id: "approach", label: "Approach", blurb: "Inbound sequencing (preview)" },
-];
+/** The app's front door: a list of saved profiles (airport + position +
+ * display type), the same pattern CRC's Profiles window uses. The airport
+ * picker itself lives in the "New Profile" dialog, not here. */
+export function Launcher({ airports, onStart, onNewProfile, onOpenSettings, onOpenManageAirports }: Props) {
+  const [profiles, setProfiles] = useState<Profile[]>(() => loadProfiles());
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-/** The app's front door: pick a downloaded airport pack, pick the position
- * you're working, then start the session. */
-export function Launcher({ airports, onStart, onOpenSettings, onOpenEditPacks }: Props) {
-  const [selectedIcao, setSelectedIcao] = useState<string | null>(null);
-  const [selectedRole, setSelectedRole] = useState<ControllerRole>("ground");
+  const refresh = () => setProfiles(loadProfiles());
 
-  useEffect(() => {
-    if (!selectedIcao && airports.length > 0) {
-      setSelectedIcao(airports[0].icao);
-    }
-  }, [airports, selectedIcao]);
+  const nameFor = (icao: string) => airports.find((a) => a.icao === icao)?.name ?? icao;
+
+  const onImportClick = () => fileInputRef.current?.click();
+  const onImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    file.text().then((text) => {
+      try {
+        importProfile(text);
+        refresh();
+      } catch {
+        // Malformed file - ignore rather than crash the launcher.
+      }
+    });
+  };
 
   return (
     <div className="launcher">
       <div className="launcher-topbar">
         <span className="launcher-title">HOLDSHORT</span>
-        <div className="launcher-topbar-actions">
-          <button className="icon-button" onClick={onOpenEditPacks} title="Edit packs">
-            📦
-          </button>
-          <button className="icon-button" onClick={onOpenSettings} title="Settings">
-            ⚙
-          </button>
-        </div>
+        <button className="icon-button" onClick={onOpenSettings} title="Settings">
+          ⚙
+        </button>
       </div>
 
-      <div className="launcher-body">
-        <section className="launcher-section">
-          <h2>Airport pack</h2>
-          <div className="pack-grid">
-            {airports.map((a) => (
-              <button
-                key={a.icao}
-                className={a.icao === selectedIcao ? "pack-card selected" : "pack-card"}
-                onClick={() => setSelectedIcao(a.icao)}
-              >
-                <span className="pack-icao">{a.icao}</span>
-                <span className="pack-name">{a.name}</span>
+      <div className="profiles-body">
+        <div className="profiles-list">
+          {profiles.length === 0 && (
+            <div className="muted">No profiles yet — create one to get started.</div>
+          )}
+          {profiles.map((p) => (
+            <div key={p.id} className="profile-row">
+              <button className="profile-row-main" onClick={() => onStart(p)}>
+                <span className="profile-name">{p.name}</span>
+                <span className="profile-meta">
+                  {p.icao} · {nameFor(p.icao)} · {p.role.toUpperCase()} ·{" "}
+                  {p.displayType === "tower" ? "TOWER CAB" : "SMR"}
+                </span>
               </button>
-            ))}
-            {airports.length === 0 && <div className="muted">No airport packs installed.</div>}
-          </div>
-        </section>
+              <div className="profile-row-actions">
+                <button
+                  className="icon-button"
+                  title="Duplicate profile"
+                  onClick={() => {
+                    duplicateProfile(p.id);
+                    refresh();
+                  }}
+                >
+                  ⧉
+                </button>
+                <button
+                  className="icon-button"
+                  title="Export profile"
+                  onClick={() => exportProfile(p)}
+                >
+                  ⇩
+                </button>
+                <button
+                  className="icon-button"
+                  title="Delete profile"
+                  onClick={() => {
+                    deleteProfile(p.id);
+                    refresh();
+                  }}
+                >
+                  🗑
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
 
-        <section className="launcher-section">
-          <h2>Position</h2>
-          <div className="role-grid">
-            {ROLES.map((r) => (
-              <button
-                key={r.id}
-                className={r.id === selectedRole ? "role-card selected" : "role-card"}
-                onClick={() => setSelectedRole(r.id)}
-              >
-                <span className="role-label">{r.label}</span>
-                <span className="role-blurb">{r.blurb}</span>
-              </button>
-            ))}
-          </div>
-        </section>
-
-        <button
-          className="start-button"
-          disabled={!selectedIcao}
-          onClick={() => selectedIcao && onStart(selectedIcao, selectedRole)}
-        >
-          Enter {selectedIcao ?? ""} — {ROLES.find((r) => r.id === selectedRole)?.label}
+        <div className="profiles-footer">
+          <button onClick={onNewProfile}>New Profile…</button>
+          <button onClick={onImportClick}>Import Profile…</button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="application/json"
+            style={{ display: "none" }}
+            onChange={onImportFile}
+          />
+        </div>
+        <button className="manage-airports-button" onClick={onOpenManageAirports}>
+          Manage Installed Airports…
         </button>
       </div>
     </div>

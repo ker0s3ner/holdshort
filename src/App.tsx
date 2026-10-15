@@ -7,7 +7,10 @@ import { ClearancePanel } from "./components/ClearancePanel";
 import { UpdateBanner } from "./components/UpdateBanner";
 import { Launcher } from "./components/Launcher";
 import { SettingsModal } from "./components/SettingsModal";
-import { EditPacksModal } from "./components/EditPacksModal";
+import { ManageAirportsModal } from "./components/ManageAirportsModal";
+import { NewProfileModal } from "./components/NewProfileModal";
+import { LoadingModal } from "./components/LoadingModal";
+import type { Profile } from "./profiles";
 import type {
   AircraftSnapshot,
   AirportData,
@@ -24,6 +27,8 @@ type ViewMode = "smr" | "tower";
 function App() {
   const [screen, setScreen] = useState<Screen>("launcher");
   const [airports, setAirports] = useState<AirportSummary[]>([]);
+  const [airportsLoading, setAirportsLoading] = useState(true);
+  const [sessionLoading, setSessionLoading] = useState(false);
   const [role, setRole] = useState<ControllerRole>("ground");
   const [airport, setAirport] = useState<AirportData | null>(null);
   const [aircraft, setAircraft] = useState<AircraftSnapshot[]>([]);
@@ -31,13 +36,16 @@ function App() {
   const [selectedCallsign, setSelectedCallsign] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [editPacksOpen, setEditPacksOpen] = useState(false);
+  const [manageAirportsOpen, setManageAirportsOpen] = useState(false);
+  const [newProfileOpen, setNewProfileOpen] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("smr");
+  const [profilesVersion, setProfilesVersion] = useState(0);
 
   useEffect(() => {
     invoke<AirportSummary[]>("list_airports")
       .then(setAirports)
-      .catch((e) => setError(String(e)));
+      .catch((e) => setError(String(e)))
+      .finally(() => setAirportsLoading(false));
   }, []);
 
   useEffect(() => {
@@ -51,17 +59,19 @@ function App() {
     };
   }, [screen]);
 
-  const startSession = useCallback((icao: string, chosenRole: ControllerRole) => {
-    invoke("start_session", { icao })
+  const startProfile = useCallback((profile: Profile) => {
+    setSessionLoading(true);
+    invoke("start_session", { icao: profile.icao })
       .then(() => invoke<AirportData>("get_airport"))
       .then((data) => {
         setAirport(data);
-        setRole(chosenRole);
+        setRole(profile.role);
         setSelectedCallsign(null);
-        setViewMode(chosenRole === "tower" ? "tower" : "smr");
+        setViewMode(profile.displayType);
         setScreen("session");
       })
-      .catch((e) => setError(String(e)));
+      .catch((e) => setError(String(e)))
+      .finally(() => setSessionLoading(false));
   }, []);
 
   const exitToLauncher = useCallback(() => {
@@ -84,22 +94,36 @@ function App() {
   if (screen === "launcher") {
     return (
       <>
+        {airportsLoading && <LoadingModal message="Checking for new navigation data" />}
+        {sessionLoading && <LoadingModal message="Loading airport surface data" />}
         <Launcher
+          key={profilesVersion}
           airports={airports}
-          onStart={startSession}
+          onStart={startProfile}
+          onNewProfile={() => setNewProfileOpen(true)}
           onOpenSettings={() => setSettingsOpen(true)}
-          onOpenEditPacks={() => setEditPacksOpen(true)}
+          onOpenManageAirports={() => setManageAirportsOpen(true)}
         />
         {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} />}
-        {editPacksOpen && (
-          <EditPacksModal airports={airports} onClose={() => setEditPacksOpen(false)} />
+        {manageAirportsOpen && (
+          <ManageAirportsModal airports={airports} onClose={() => setManageAirportsOpen(false)} />
+        )}
+        {newProfileOpen && (
+          <NewProfileModal
+            airports={airports}
+            onClose={() => setNewProfileOpen(false)}
+            onCreated={() => {
+              setNewProfileOpen(false);
+              setProfilesVersion((v) => v + 1);
+            }}
+          />
         )}
       </>
     );
   }
 
   if (!airport) {
-    return <div className="status-line">Loading airport surface data…</div>;
+    return <LoadingModal message="Loading airport surface data" />;
   }
 
   const hh = Math.floor(clockS / 3600);
