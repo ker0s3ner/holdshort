@@ -32,9 +32,7 @@
       "icons/icon.ico"
     ],
     "createUpdaterArtifacts": true,
-    "macOS": {
-      "signingIdentity": "-"
-    }
+    "macOS": {}
   },
   "plugins": {
     "updater": {
