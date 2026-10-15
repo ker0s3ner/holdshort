@@ -5,7 +5,7 @@ interface Props {
   airport: AirportData;
   aircraft: AircraftSnapshot[];
   selectedCallsign: string | null;
-  onSelectAircraft: (callsign: string) => void;
+  onSelectAircraft: (callsign: string | null) => void;
 }
 
 const DIAGRAM_COLOR = "#ffb020";
@@ -283,8 +283,8 @@ export function TowerCabView({ airport, aircraft, selectedCallsign, onSelectAirc
         ctx.shadowBlur = 0;
         ctx.restore();
 
-        if (isSelected) {
-          ctx.strokeStyle = "#ffdf5e";
+        if (ac.is_speaking) {
+          ctx.strokeStyle = isSelected ? "#ffdf5e" : "#ffffff";
           ctx.lineWidth = 1.5;
           ctx.beginPath();
           ctx.arc(sx, sy, 11, 0, Math.PI * 2);
@@ -305,7 +305,11 @@ export function TowerCabView({ airport, aircraft, selectedCallsign, onSelectAirc
         ctx.shadowBlur = 2;
         ctx.fillText(ac.callsign, leaderEnd.x + 2, leaderEnd.y - 2);
         ctx.fillText(ac.aircraft_type, leaderEnd.x + 2, leaderEnd.y + 9);
-        ctx.fillText(destTag(ac.destination), leaderEnd.x + 2, leaderEnd.y + 20);
+        ctx.fillText(
+          destTag(ac.rule === "Departure" ? ac.destination : ac.origin),
+          leaderEnd.x + 2,
+          leaderEnd.y + 20,
+        );
         ctx.shadowBlur = 0;
       }
 
@@ -339,7 +343,7 @@ export function TowerCabView({ airport, aircraft, selectedCallsign, onSelectAirc
     const onMouseDown = (e: MouseEvent) => {
       const hit = findAircraftAt(e.clientX, e.clientY);
       if (hit) {
-        onSelectAircraft(hit);
+        onSelectAircraft(hit === selectedRef.current ? null : hit);
         return;
       }
       dragRef.current = { x: e.clientX, y: e.clientY };

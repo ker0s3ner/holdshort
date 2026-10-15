@@ -13,18 +13,18 @@ const AIRLINES: &[(&str, &str)] = &[
 
 const AIRCRAFT_TYPES: &[&str] = &["A320", "B738", "E175", "CRJ9", "A319", "B739"];
 
-const DESTINATIONS: &[&str] = &[
-    "KLAX", "KSFO", "KPHX", "KDEN", "KSEA", "KSAN", "KOAK", "KLAS",
-];
+const OTHER_AIRPORTS: &[&str] = &["KLAX", "KSFO", "KPHX", "KDEN", "KSEA", "KSAN", "KOAK", "KLAS"];
 
-/// Procedurally generates a plausible traffic sample: picks a random free
-/// gate, airline/type/destination combination, and runway end, then spawns
-/// a departure on the simulation. This stands in for a full schedule-driven
-/// generator and can be swapped out without touching the sim engine.
+/// Procedurally generates a plausible mix of departure and arrival traffic:
+/// picks a random free gate, airline/type/other-airport combination, and
+/// spawns either a departure or an arrival on the simulation. Gate
+/// occupancy is derived live from the simulation's current aircraft each
+/// time (rather than tracked separately), so a gate frees up automatically
+/// the moment its aircraft departs or a parked arrival despawns - no manual
+/// release bookkeeping to get out of sync.
 pub struct TrafficGenerator {
     pub next_spawn_in_s: f64,
     pub spawn_interval_s: f64,
-    used_gates: Vec<String>,
 }
 
 impl TrafficGenerator {
@@ -32,7 +32,6 @@ impl TrafficGenerator {
         TrafficGenerator {
             next_spawn_in_s: spawn_interval_s,
             spawn_interval_s,
-            used_gates: Vec::new(),
         }
     }
 
@@ -44,12 +43,17 @@ impl TrafficGenerator {
         self.next_spawn_in_s = self.spawn_interval_s;
 
         let mut rng = rand::thread_rng();
+        let occupied: Vec<String> = sim
+            .aircraft
+            .values()
+            .map(|a| a.flight_plan.assigned_gate.clone())
+            .collect();
         let free_gates: Vec<String> = sim
             .airport
             .parking_positions
             .iter()
             .map(|p| p.ref_.clone())
-            .filter(|g| !self.used_gates.contains(g) && !g.is_empty())
+            .filter(|g| !g.is_empty() && !occupied.contains(g))
             .collect();
         let Some(gate) = free_gates.choose(&mut rng) else {
             return;
@@ -59,20 +63,23 @@ impl TrafficGenerator {
         let flight_no: u32 = rng.gen_range(100..9999);
         let callsign = format!("{airline}{flight_no}");
         let ac_type = AIRCRAFT_TYPES.choose(&mut rng).unwrap();
-        let dest = DESTINATIONS.choose(&mut rng).unwrap();
+        let other_airport = OTHER_AIRPORTS.choose(&mut rng).unwrap();
 
-        match sim.spawn_departure(&callsign, ac_type, gate, runway_ref, departure_end) {
-            Ok(()) => {
+        let is_arrival = rng.gen_bool(0.5);
+        if is_arrival {
+            if let Ok(()) =
+                sim.spawn_arrival(&callsign, ac_type, runway_ref, departure_end, gate)
+            {
                 if let Some(ac) = sim.aircraft.get_mut(&callsign) {
-                    ac.flight_plan.destination = dest.to_string();
+                    ac.flight_plan.origin = other_airport.to_string();
                 }
-                self.used_gates.push(gate.clone());
             }
-            Err(_) => {}
+        } else if let Ok(()) =
+            sim.spawn_departure(&callsign, ac_type, gate, runway_ref, departure_end)
+        {
+            if let Some(ac) = sim.aircraft.get_mut(&callsign) {
+                ac.flight_plan.destination = other_airport.to_string();
+            }
         }
-    }
-
-    pub fn release_gate(&mut self, gate_ref: &str) {
-        self.used_gates.retain(|g| g != gate_ref);
     }
 }

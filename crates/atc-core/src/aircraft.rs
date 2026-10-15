@@ -51,6 +51,12 @@ pub struct Aircraft {
     pub cleared_for_takeoff: bool,
     pub cleared_to_land: bool,
     pub cleared_pushback: bool,
+    /// True while an AI-generated readback is being spoken for this
+    /// aircraft, so the display can ring whoever is "on frequency".
+    pub is_speaking: bool,
+    /// Sim clock timestamp (seconds) when this aircraft reached Parked, so
+    /// it can be despawned after a realistic gate dwell time.
+    pub parked_at_s: Option<f64>,
 }
 
 impl Aircraft {

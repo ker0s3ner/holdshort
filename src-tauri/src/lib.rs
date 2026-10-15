@@ -1,7 +1,8 @@
 use atc_core::airports::AirportSummary;
 use atc_core::clearance::ClearanceCommand;
-use atc_core::{airports, AircraftState, AirportData, Simulation, TrafficGenerator};
+use atc_core::{airports, AircraftState, AirportData, FlightRule, Simulation, TrafficGenerator};
 use serde::Serialize;
+use std::path::PathBuf;
 use std::sync::Mutex;
 use std::time::Duration;
 use tauri::{Emitter, Manager};
@@ -16,6 +17,7 @@ struct AppState {
     traffic: Mutex<TrafficGenerator>,
     active: Mutex<bool>,
     runway: Mutex<ActiveRunway>,
+    data_dir: PathBuf,
 }
 
 #[derive(Serialize, Clone)]
@@ -23,13 +25,16 @@ struct AircraftSnapshot {
     callsign: String,
     aircraft_type: String,
     state: AircraftState,
+    rule: FlightRule,
     x: f64,
     y: f64,
     heading_deg: f64,
     ground_speed_kt: f64,
     destination: String,
+    origin: String,
     assigned_gate: String,
     assigned_runway: String,
+    is_speaking: bool,
 }
 
 #[derive(Serialize, Clone)]
@@ -38,22 +43,52 @@ struct SimTick {
     aircraft: Vec<AircraftSnapshot>,
 }
 
+/// Airports installed on this machine right now - no network needed. This
+/// is what the launcher and profile picker show.
 #[tauri::command]
-fn list_airports() -> Vec<AirportSummary> {
-    airports::available_airports()
+fn list_installed(state: tauri::State<AppState>) -> Vec<AirportSummary> {
+    airports::list_installed(&state.data_dir)
+}
+
+/// The full catalog of every airport that *could* be installed - fetched
+/// from the data repo, so it grows without needing an app update.
+#[tauri::command]
+async fn list_catalog() -> Result<Vec<AirportSummary>, String> {
+    airports::fetch_catalog().await
+}
+
+#[tauri::command]
+fn is_installed(state: tauri::State<AppState>, icao: String) -> bool {
+    airports::is_installed(&state.data_dir, &icao)
+}
+
+#[tauri::command]
+async fn install_airport(state: tauri::State<'_, AppState>, icao: String) -> Result<(), String> {
+    airports::install_airport(&state.data_dir, &icao).await
+}
+
+#[tauri::command]
+fn uninstall_airport(state: tauri::State<AppState>, icao: String) -> Result<(), String> {
+    airports::uninstall_airport(&state.data_dir, &icao)
 }
 
 #[tauri::command]
 fn start_session(state: tauri::State<AppState>, icao: String) -> Result<(), String> {
-    let airport = airports::load(&icao)?;
+    let airport = airports::load(&state.data_dir, &icao)?;
     let (rwy_ref, departure_end) = airport
         .runways
         .first()
         .and_then(|r| r.ends.first().map(|e| (r.ref_.clone(), e.clone())))
         .ok_or_else(|| format!("{icao} has no runways defined"))?;
 
+    // Busier (more gates) airports see more frequent traffic, like real
+    // operations - a 27-gate field like Kaunas stays quiet, a 300+ gate hub
+    // like Heathrow or Frankfurt spawns aircraft every few seconds.
+    let gate_count = airport.parking_positions.len().max(1) as f64;
+    let spawn_interval_s = (2200.0 / gate_count).clamp(6.0, 90.0);
+
     *state.sim.lock().unwrap() = Simulation::new(airport);
-    *state.traffic.lock().unwrap() = TrafficGenerator::new(45.0);
+    *state.traffic.lock().unwrap() = TrafficGenerator::new(spawn_interval_s);
     *state.runway.lock().unwrap() = ActiveRunway {
         rwy_ref,
         departure_end,
@@ -82,6 +117,75 @@ fn issue_clearance(state: tauri::State<AppState>, command: ClearanceCommand) -> 
     state.sim.lock().unwrap().apply_clearance(command)
 }
 
+#[tauri::command]
+fn set_speaking(state: tauri::State<AppState>, callsign: String, speaking: bool) {
+    state.sim.lock().unwrap().set_speaking(&callsign, speaking);
+}
+
+/// Real-world METAR for an airport, straight from aviationweather.gov's
+/// public text data service (no API key needed). Fetched from the Rust
+/// side so the webview's origin never hits that server's CORS policy.
+#[tauri::command]
+async fn get_metar(icao: String) -> Result<String, String> {
+    let url = format!(
+        "https://aviationweather.gov/api/data/metar?ids={}&format=raw",
+        icao.to_uppercase()
+    );
+    let resp = reqwest::get(&url)
+        .await
+        .map_err(|e| format!("METAR request failed: {e}"))?;
+    let text = resp
+        .text()
+        .await
+        .map_err(|e| format!("METAR response read failed: {e}"))?;
+    let line = text.lines().next().unwrap_or("").trim();
+    if line.is_empty() {
+        return Err(format!("no METAR available for {icao}"));
+    }
+    Ok(line.to_string())
+}
+
+#[derive(serde::Deserialize)]
+struct OllamaResponse {
+    response: String,
+}
+
+/// Asks a locally-running Ollama instance (e.g. `ollama run gemma2`) to
+/// generate text - used for AI pilot readbacks. Fails clearly if Ollama
+/// isn't running or the model isn't pulled, rather than pretending to work.
+#[tauri::command]
+async fn ask_ai(prompt: String, model: Option<String>) -> Result<String, String> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(30))
+        .build()
+        .map_err(|e| e.to_string())?;
+    let body = serde_json::json!({
+        "model": model.unwrap_or_else(|| "gemma2".to_string()),
+        "prompt": prompt,
+        "stream": false,
+    });
+    let resp = client
+        .post("http://localhost:11434/api/generate")
+        .json(&body)
+        .send()
+        .await
+        .map_err(|_| {
+            "Couldn't reach Ollama at localhost:11434 - install Ollama and run \
+             `ollama pull gemma2`, then make sure it's running."
+                .to_string()
+        })?;
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let text = resp.text().await.unwrap_or_default();
+        return Err(format!("Ollama returned {status}: {text}"));
+    }
+    let parsed: OllamaResponse = resp
+        .json()
+        .await
+        .map_err(|e| format!("couldn't parse Ollama response: {e}"))?;
+    Ok(parsed.response.trim().to_string())
+}
+
 fn build_snapshot(sim: &Simulation) -> SimTick {
     let aircraft = sim
         .aircraft
@@ -90,13 +194,16 @@ fn build_snapshot(sim: &Simulation) -> SimTick {
             callsign: ac.callsign.clone(),
             aircraft_type: ac.aircraft_type.clone(),
             state: ac.state,
+            rule: ac.flight_plan.rule,
             x: ac.x,
             y: ac.y,
             heading_deg: ac.heading_deg,
             ground_speed_kt: ac.ground_speed_kt,
             destination: ac.flight_plan.destination.clone(),
+            origin: ac.flight_plan.origin.clone(),
             assigned_gate: ac.flight_plan.assigned_gate.clone(),
             assigned_runway: ac.flight_plan.assigned_runway.clone(),
+            is_speaking: ac.is_speaking,
         })
         .collect();
     SimTick {
@@ -112,7 +219,13 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .setup(|app| {
-            let default_airport = airports::load("KBUR").expect("bundled KBUR surface data loads");
+            let data_dir = app
+                .path()
+                .app_data_dir()
+                .expect("app data dir resolves on every supported platform");
+
+            let default_airport =
+                airports::load(&data_dir, "KBUR").expect("bundled KBUR surface data loads");
             let sim = Simulation::new(default_airport);
             let traffic = TrafficGenerator::new(45.0);
             app.manage(AppState {
@@ -123,11 +236,18 @@ pub fn run() {
                     rwy_ref: "15/33".to_string(),
                     departure_end: "15".to_string(),
                 }),
+                data_dir,
             });
 
             let app_handle = app.handle().clone();
             std::thread::spawn(move || {
+                // Physics advances at 4 Hz for accurate taxi/hold-short
+                // timing, but the display only gets a fresh snapshot once a
+                // second - real surface radar updates at roughly 1 Hz, not
+                // smooth continuous motion, so this keeps the on-screen feel
+                // honest instead of silky-interpolated.
                 let dt = 0.25;
+                let mut ticks_since_emit = 0u32;
                 loop {
                     std::thread::sleep(Duration::from_millis(250));
                     let state = app_handle.state::<AppState>();
@@ -140,8 +260,15 @@ pub fn run() {
                     traffic.tick(dt, &mut sim, &rwy.rwy_ref, &rwy.departure_end);
                     drop(rwy);
                     sim.tick(dt);
-                    let snapshot = build_snapshot(&sim);
                     drop(traffic);
+
+                    ticks_since_emit += 1;
+                    if ticks_since_emit < 4 {
+                        drop(sim);
+                        continue;
+                    }
+                    ticks_since_emit = 0;
+                    let snapshot = build_snapshot(&sim);
                     drop(sim);
                     let _ = app_handle.emit("sim-tick", snapshot);
                 }
@@ -150,12 +277,19 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            list_airports,
+            list_installed,
+            list_catalog,
+            is_installed,
+            install_airport,
+            uninstall_airport,
             start_session,
             end_session,
             get_airport,
             get_traffic,
-            issue_clearance
+            issue_clearance,
+            set_speaking,
+            get_metar,
+            ask_ai
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

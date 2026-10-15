@@ -74,17 +74,22 @@ export type AircraftState =
   | "TaxiingToGate"
   | "Parked";
 
+export type FlightRule = "Departure" | "Arrival";
+
 export interface AircraftSnapshot {
   callsign: string;
   aircraft_type: string;
   state: AircraftState;
+  rule: FlightRule;
   x: number;
   y: number;
   heading_deg: number;
   ground_speed_kt: number;
   destination: string;
+  origin: string;
   assigned_gate: string;
   assigned_runway: string;
+  is_speaking: boolean;
 }
 
 export interface SimTick {
@@ -95,6 +100,7 @@ export interface SimTick {
 export interface AirportSummary {
   icao: string;
   name: string;
+  region: string;
 }
 
 export type ControllerRole = "ramp" | "ground" | "tower" | "approach";

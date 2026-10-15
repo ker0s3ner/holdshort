@@ -1,9 +1,11 @@
 use atc_core::clearance::{Clearance, ClearanceCommand};
+use atc_core::model::AirportData;
 use atc_core::{airports, AircraftState, Simulation};
+use std::path::Path;
 
 #[test]
 fn full_departure_cycle_on_real_kbur_layout() {
-    let airport = airports::load("KBUR").expect("bundled airport data loads");
+    let airport = airports::load(Path::new("."), "KBUR").expect("bundled starter airport loads");
     assert_eq!(airport.runways.len(), 2);
     assert!(airport.parking_positions.len() > 10);
 
@@ -64,37 +66,51 @@ fn full_departure_cycle_on_real_kbur_layout() {
     );
 }
 
+/// Every airport data file in the repo should stay gate-to-runway routable,
+/// independent of the network-based install flow - this reads the data/
+/// directory directly rather than going through `airports::install_airport`.
 #[test]
-fn every_bundled_airport_is_routable() {
-    for summary in airports::available_airports() {
-        let airport = airports::load(&summary.icao)
-            .unwrap_or_else(|e| panic!("{} failed to load: {e}", summary.icao));
-        assert!(
-            !airport.runways.is_empty(),
-            "{} has no runways",
-            summary.icao
-        );
+fn every_data_file_is_routable() {
+    let data_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+    let mut checked = 0;
+    for entry in std::fs::read_dir(&data_dir).expect("data dir exists") {
+        let entry = entry.unwrap();
+        let path = entry.path();
+        if path.extension().and_then(|e| e.to_str()) != Some("json") {
+            continue;
+        }
+        if path.file_stem().and_then(|s| s.to_str()) == Some("catalog") {
+            continue;
+        }
+        let contents = std::fs::read_to_string(&path).unwrap();
+        let airport = AirportData::from_json_str(&contents)
+            .unwrap_or_else(|e| panic!("{}: failed to parse: {e}", path.display()));
+
+        assert!(!airport.runways.is_empty(), "{}: no runways", airport.icao);
         assert!(
             !airport.parking_positions.is_empty(),
-            "{} has no parking positions",
-            summary.icao
+            "{}: no parking positions",
+            airport.icao
         );
 
         let runway = &airport.runways[0];
         let departure_end = runway.ends[0].clone();
         let rwy_ref = runway.ref_.clone();
         let gate = airport.parking_positions[0].ref_.clone();
+        let icao = airport.icao.clone();
 
         let mut sim = Simulation::new(airport);
         sim.spawn_departure("ROUTETEST", "A320", &gate, &rwy_ref, &departure_end)
-            .unwrap_or_else(|e| panic!("{}: no route from {gate} to {rwy_ref}: {e}", summary.icao));
-        assert!(sim.aircraft["ROUTETEST"].route.len() > 1, "{}", summary.icao);
+            .unwrap_or_else(|e| panic!("{icao}: no route from {gate} to {rwy_ref}: {e}"));
+        assert!(sim.aircraft["ROUTETEST"].route.len() > 1, "{icao}");
+        checked += 1;
     }
+    assert!(checked > 0, "no airport data files were found to check");
 }
 
 #[test]
 fn arrival_taxis_from_runway_to_gate() {
-    let airport = airports::load("KBUR").unwrap();
+    let airport = airports::load(Path::new("."), "KBUR").unwrap();
     let gate = airport.parking_positions[3].ref_.clone();
     let mut sim = Simulation::new(airport);
 

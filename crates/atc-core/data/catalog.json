@@ -1,0 +1,192 @@
+[
+  {
+    "icao": "EDDF",
+    "name": "Frankfurt Airport",
+    "region": "Germany"
+  },
+  {
+    "icao": "EETN",
+    "name": "Tallinn Airport",
+    "region": "Estonia"
+  },
+  {
+    "icao": "EFHK",
+    "name": "Helsinki-Vantaa Airport",
+    "region": "Finland"
+  },
+  {
+    "icao": "EFRO",
+    "name": "Rovaniemi Airport",
+    "region": "Finland"
+  },
+  {
+    "icao": "EFTP",
+    "name": "Tampere-Pirkkala Airport",
+    "region": "Finland"
+  },
+  {
+    "icao": "EGBB",
+    "name": "Birmingham Airport",
+    "region": "United Kingdom"
+  },
+  {
+    "icao": "EGCC",
+    "name": "Manchester Airport",
+    "region": "United Kingdom"
+  },
+  {
+    "icao": "EGGW",
+    "name": "London Luton Airport",
+    "region": "United Kingdom"
+  },
+  {
+    "icao": "EGKK",
+    "name": "London Gatwick Airport",
+    "region": "United Kingdom"
+  },
+  {
+    "icao": "EGLL",
+    "name": "London Heathrow Airport",
+    "region": "United Kingdom"
+  },
+  {
+    "icao": "EGPF",
+    "name": "Glasgow Airport",
+    "region": "United Kingdom"
+  },
+  {
+    "icao": "EGPH",
+    "name": "Edinburgh Airport",
+    "region": "United Kingdom"
+  },
+  {
+    "icao": "EGSS",
+    "name": "London Stansted Airport",
+    "region": "United Kingdom"
+  },
+  {
+    "icao": "EICK",
+    "name": "Cork Airport",
+    "region": "Ireland"
+  },
+  {
+    "icao": "EIDW",
+    "name": "Dublin Airport",
+    "region": "Ireland"
+  },
+  {
+    "icao": "EINN",
+    "name": "Shannon Airport",
+    "region": "Ireland"
+  },
+  {
+    "icao": "EKBI",
+    "name": "Billund Airport",
+    "region": "Denmark"
+  },
+  {
+    "icao": "EKCH",
+    "name": "Copenhagen Kastrup Airport",
+    "region": "Denmark"
+  },
+  {
+    "icao": "ENBR",
+    "name": "Bergen Flesland Airport",
+    "region": "Norway"
+  },
+  {
+    "icao": "ENGM",
+    "name": "Oslo Gardermoen Airport",
+    "region": "Norway"
+  },
+  {
+    "icao": "ENVA",
+    "name": "Trondheim Vaernes Airport",
+    "region": "Norway"
+  },
+  {
+    "icao": "ENZV",
+    "name": "Stavanger Sola Airport",
+    "region": "Norway"
+  },
+  {
+    "icao": "ESGG",
+    "name": "Gothenburg Landvetter Airport",
+    "region": "Sweden"
+  },
+  {
+    "icao": "ESMS",
+    "name": "Malmo Airport",
+    "region": "Sweden"
+  },
+  {
+    "icao": "ESSA",
+    "name": "Stockholm Arlanda Airport",
+    "region": "Sweden"
+  },
+  {
+    "icao": "ESSB",
+    "name": "Stockholm Bromma Airport",
+    "region": "Sweden"
+  },
+  {
+    "icao": "EVRA",
+    "name": "Riga International Airport",
+    "region": "Latvia"
+  },
+  {
+    "icao": "EYKA",
+    "name": "Kaunas Airport",
+    "region": "Lithuania"
+  },
+  {
+    "icao": "EYVI",
+    "name": "Vilnius Airport",
+    "region": "Lithuania"
+  },
+  {
+    "icao": "KATL",
+    "name": "Hartsfield-Jackson Atlanta International Airport",
+    "region": "United States"
+  },
+  {
+    "icao": "KBUR",
+    "name": "Hollywood Burbank Airport",
+    "region": "United States"
+  },
+  {
+    "icao": "KDFW",
+    "name": "Dallas Fort Worth International Airport",
+    "region": "United States"
+  },
+  {
+    "icao": "KJFK",
+    "name": "John F. Kennedy International Airport",
+    "region": "United States"
+  },
+  {
+    "icao": "KLAX",
+    "name": "Los Angeles International Airport",
+    "region": "United States"
+  },
+  {
+    "icao": "KORD",
+    "name": "Chicago O'Hare International Airport",
+    "region": "United States"
+  },
+  {
+    "icao": "LTFM",
+    "name": "Istanbul Airport",
+    "region": "Turkey"
+  },
+  {
+    "icao": "OMDB",
+    "name": "Dubai International Airport",
+    "region": "United Arab Emirates"
+  },
+  {
+    "icao": "RJTT",
+    "name": "Tokyo Haneda Airport",
+    "region": "Japan"
+  }
+]

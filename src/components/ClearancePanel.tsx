@@ -1,4 +1,5 @@
 import type { AircraftSnapshot, AirportData, Clearance, ControllerRole } from "../types";
+import { frequencyFor } from "../frequencies";
 
 interface Props {
   airport: AirportData;
@@ -38,6 +39,15 @@ const BUTTONS_BY_ROLE: Record<ControllerRole, ClearanceButton[]> = {
   approach: [],
 };
 
+const ADJACENT_POSITIONS: Record<ControllerRole, (keyof typeof BUTTONS_BY_ROLE)[]> = {
+  ramp: ["ground"],
+  ground: ["ramp", "tower"],
+  tower: ["ground", "approach"],
+  approach: ["tower"],
+};
+
+const HELD_STATES = new Set(["HoldingShort", "LinedUp"]);
+
 export function ClearancePanel({
   airport,
   aircraft,
@@ -48,6 +58,7 @@ export function ClearancePanel({
 }: Props) {
   const selected = aircraft.find((a) => a.callsign === selectedCallsign) ?? null;
   const buttons = BUTTONS_BY_ROLE[role];
+  const held = aircraft.filter((a) => HELD_STATES.has(a.state));
 
   const issue = (clearance: Clearance) => {
     if (!selectedCallsign) return;
@@ -60,9 +71,23 @@ export function ClearancePanel({
         {airport.icao} {role.toUpperCase()}
       </div>
 
-      <div className="aircraft-list">
-        {aircraft.length === 0 && <div className="muted">No traffic yet…</div>}
-        {aircraft.map((ac) => (
+      <div className="freq-strip">
+        <div className="freq-row freq-own">
+          <span>{role.toUpperCase()}</span>
+          <span>{frequencyFor(airport.icao, role)}</span>
+        </div>
+        {ADJACENT_POSITIONS[role].map((pos) => (
+          <div className="freq-row" key={pos}>
+            <span>{pos.toUpperCase()}</span>
+            <span>{frequencyFor(airport.icao, pos)}</span>
+          </div>
+        ))}
+      </div>
+
+      <div className="panel-subheader">Held Positions</div>
+      <div className="held-list">
+        {held.length === 0 && <div className="muted">None holding.</div>}
+        {held.map((ac) => (
           <button
             key={ac.callsign}
             className={ac.callsign === selectedCallsign ? "aircraft-row selected" : "aircraft-row"}
@@ -70,7 +95,7 @@ export function ClearancePanel({
           >
             <span className="callsign">{ac.callsign}</span>
             <span className="type">{ac.aircraft_type}</span>
-            <span className="state">{ac.state}</span>
+            <span className="state">{ac.state === "LinedUp" ? "lined up" : "holding short"}</span>
           </button>
         ))}
       </div>
@@ -88,7 +113,8 @@ export function ClearancePanel({
         <div className="clearance-detail">
           <div className="detail-line">
             {selected.callsign} · {selected.aircraft_type} · gate {selected.assigned_gate} · rwy{" "}
-            {selected.assigned_runway} · dest {selected.destination}
+            {selected.assigned_runway} ·{" "}
+            {selected.rule === "Departure" ? `dest ${selected.destination}` : `from ${selected.origin}`}
           </div>
           <div className="clearance-buttons">
             {buttons.map((b) => (

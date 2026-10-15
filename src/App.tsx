@@ -10,6 +10,8 @@ import { SettingsModal } from "./components/SettingsModal";
 import { ManageRegionsModal } from "./components/ManageRegionsModal";
 import { NewProfileModal } from "./components/NewProfileModal";
 import { LoadingModal } from "./components/LoadingModal";
+import { speakReadback } from "./voice";
+import { isReadbackEnabled } from "./voiceSettings";
 import type { Profile } from "./profiles";
 import type {
   AircraftSnapshot,
@@ -40,13 +42,14 @@ function App() {
   const [newProfileOpen, setNewProfileOpen] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("smr");
   const [profilesVersion, setProfilesVersion] = useState(0);
+  const [installedVersion, setInstalledVersion] = useState(0);
 
   useEffect(() => {
-    invoke<AirportSummary[]>("list_airports")
+    invoke<AirportSummary[]>("list_installed")
       .then(setAirports)
       .catch((e) => setError(String(e)))
       .finally(() => setAirportsLoading(false));
-  }, []);
+  }, [installedVersion]);
 
   useEffect(() => {
     if (screen !== "session") return;
@@ -82,9 +85,11 @@ function App() {
   }, []);
 
   const onIssue = useCallback((callsign: string, clearance: Clearance) => {
-    invoke("issue_clearance", { command: { callsign, clearance } }).catch((e) =>
-      setError(String(e)),
-    );
+    invoke("issue_clearance", { command: { callsign, clearance } })
+      .then(() => {
+        if (isReadbackEnabled()) speakReadback(callsign, clearance);
+      })
+      .catch((e) => setError(String(e)));
   }, []);
 
   if (error) {
@@ -106,7 +111,11 @@ function App() {
         />
         {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} />}
         {manageRegionsOpen && (
-          <ManageRegionsModal airports={airports} onClose={() => setManageRegionsOpen(false)} />
+          <ManageRegionsModal
+            installed={airports}
+            onClose={() => setManageRegionsOpen(false)}
+            onInstalledChanged={() => setInstalledVersion((v) => v + 1)}
+          />
         )}
         {newProfileOpen && (
           <NewProfileModal
@@ -136,14 +145,10 @@ function App() {
       <UpdateBanner />
       <div className="top-bar">
         <button className="back-button" onClick={exitToLauncher} title="Back to menu">
-          ‹ Menu
+          ‹
         </button>
-        <span className="title">
-          {airport.name} ({airport.icao}) · {role.toUpperCase()}
-        </span>
-        <span className="view-label">{viewMode === "smr" ? "SMR" : "TOWER CAB"}</span>
         <span className="clock">
-          SIM T+{pad(hh)}:{pad(mm)}:{pad(ss)}
+          {pad(hh)}:{pad(mm)}:{pad(ss)}
         </span>
       </div>
       <div className="main-area">

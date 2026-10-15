@@ -13,6 +13,9 @@ const TAKEOFF_DECISION_SPEED_KT: f64 = 140.0;
 const LANDING_ROLLOUT_SPEED_KT: f64 = 60.0;
 const LANDING_DECEL_KT_PER_S: f64 = 3.0;
 const LANDING_EXIT_SPEED_KT: f64 = 15.0;
+/// How long a parked arrival sits at the gate before despawning (deplaning
+/// + a plausible turnaround), freeing the gate for the next spawn.
+const GATE_DWELL_S: f64 = 150.0;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct SimEvent {
@@ -30,11 +33,12 @@ pub struct Simulation {
 impl Simulation {
     pub fn new(airport: AirportData) -> Self {
         let graph = TaxiGraph::build(&airport);
+        let clock_s = local_clock_seconds(airport.reference_point.lon);
         Simulation {
             airport,
             graph,
             aircraft: HashMap::new(),
-            clock_s: 0.0,
+            clock_s,
         }
     }
 
@@ -103,6 +107,8 @@ impl Simulation {
             cleared_for_takeoff: false,
             cleared_to_land: false,
             cleared_pushback: false,
+            is_speaking: false,
+            parked_at_s: None,
         };
         self.aircraft.insert(callsign.to_string(), aircraft);
         Ok(())
@@ -152,9 +158,20 @@ impl Simulation {
             cleared_for_takeoff: false,
             cleared_to_land: true,
             cleared_pushback: false,
+            is_speaking: false,
+            parked_at_s: None,
         };
         self.aircraft.insert(callsign.to_string(), aircraft);
         Ok(())
+    }
+
+    /// Toggles the "on frequency" indicator for an aircraft (used to ring
+    /// whoever is currently speaking on the display), independent of
+    /// controller selection.
+    pub fn set_speaking(&mut self, callsign: &str, speaking: bool) {
+        if let Some(ac) = self.aircraft.get_mut(callsign) {
+            ac.is_speaking = speaking;
+        }
     }
 
     pub fn apply_clearance(&mut self, cmd: ClearanceCommand) -> Result<(), String> {
@@ -246,13 +263,23 @@ impl Simulation {
     }
 
     pub fn tick(&mut self, dt_s: f64) -> Vec<SimEvent> {
-        self.clock_s += dt_s;
+        self.clock_s = (self.clock_s + dt_s) % 86400.0;
         let mut events = Vec::new();
         let mut done: Vec<String> = Vec::new();
 
         for ac in self.aircraft.values_mut() {
             match ac.state {
-                AircraftState::AtGate | AircraftState::Parked => continue,
+                AircraftState::AtGate => continue,
+                AircraftState::Parked => {
+                    match ac.parked_at_s {
+                        Some(since) if self.clock_s - since >= GATE_DWELL_S => {
+                            done.push(ac.callsign.clone());
+                        }
+                        Some(_) => {}
+                        None => ac.parked_at_s = Some(self.clock_s),
+                    }
+                    continue;
+                }
                 AircraftState::PushingBack => {
                     ac.ground_speed_kt = PUSHBACK_SPEED_KT;
                     advance_along_route(ac, dt_s, &self.graph);
@@ -324,6 +351,22 @@ impl Simulation {
 
         events
     }
+}
+
+/// Approximates the airport's local clock (seconds since local midnight)
+/// from the current UTC time and the airport's longitude. This is a
+/// solar-time approximation (15 degrees of longitude per hour), not a real
+/// IANA timezone/DST lookup - close enough for a sim clock without pulling
+/// in a timezone-boundary database.
+fn local_clock_seconds(lon_deg: f64) -> f64 {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs_f64();
+    let utc_seconds_since_midnight = now % 86400.0;
+    let offset_hours = (lon_deg / 15.0).round();
+    (utc_seconds_since_midnight + offset_hours * 3600.0).rem_euclid(86400.0)
 }
 
 /// Moves an aircraft toward its current route target at its current ground

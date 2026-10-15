@@ -5,7 +5,7 @@ interface Props {
   airport: AirportData;
   aircraft: AircraftSnapshot[];
   selectedCallsign: string | null;
-  onSelectAircraft: (callsign: string) => void;
+  onSelectAircraft: (callsign: string | null) => void;
 }
 
 const BG_COLOR = "#0a3f45";
@@ -225,11 +225,11 @@ export function SurfaceDisplay({ airport, aircraft, selectedCallsign, onSelectAi
         drawPlaneGlyph(ctx);
         ctx.restore();
 
-        // "Speaking" indicator: a controller is addressing the selected
-        // aircraft, so ring it the way a live-ATC client marks whoever is
-        // transmitting.
-        if (isSelected) {
-          ctx.strokeStyle = "#ffdf5e";
+        // "Speaking" indicator: a ring around whoever is transmitting,
+        // independent of selection - yellow if it's also the aircraft
+        // you've selected, white otherwise (matching live-ATC clients).
+        if (ac.is_speaking) {
+          ctx.strokeStyle = isSelected ? "#ffdf5e" : "#ffffff";
           ctx.lineWidth = 1.5;
           ctx.beginPath();
           ctx.arc(sx, sy, 11, 0, Math.PI * 2);
@@ -251,7 +251,11 @@ export function SurfaceDisplay({ airport, aircraft, selectedCallsign, onSelectAi
         ctx.textBaseline = "alphabetic";
         ctx.fillText(ac.callsign, leaderEnd.x + 2, leaderEnd.y - 2);
         ctx.fillText(ac.aircraft_type, leaderEnd.x + 2, leaderEnd.y + 9);
-        ctx.fillText(destTag(ac.destination), leaderEnd.x + 2, leaderEnd.y + 20);
+        ctx.fillText(
+          destTag(ac.rule === "Departure" ? ac.destination : ac.origin),
+          leaderEnd.x + 2,
+          leaderEnd.y + 20,
+        );
       }
 
       ctx.restore();
@@ -284,7 +288,7 @@ export function SurfaceDisplay({ airport, aircraft, selectedCallsign, onSelectAi
     const onMouseDown = (e: MouseEvent) => {
       const hit = findAircraftAt(e.clientX, e.clientY);
       if (hit) {
-        onSelectAircraft(hit);
+        onSelectAircraft(hit === selectedRef.current ? null : hit);
         return;
       }
       dragRef.current = { x: e.clientX, y: e.clientY };
