@@ -1,4 +1,5 @@
-use crate::sim::Simulation;
+use crate::aircraft::AircraftState;
+use crate::sim::{SimEvent, Simulation};
 use rand::seq::SliceRandom;
 use rand::Rng;
 
@@ -35,12 +36,36 @@ impl TrafficGenerator {
         }
     }
 
-    pub fn tick(&mut self, dt_s: f64, sim: &mut Simulation, runway_ref: &str, departure_end: &str) {
+    pub fn tick(
+        &mut self,
+        dt_s: f64,
+        sim: &mut Simulation,
+        runway_ref: &str,
+        departure_end: &str,
+    ) -> Option<SimEvent> {
         self.next_spawn_in_s -= dt_s;
         if self.next_spawn_in_s > 0.0 {
-            return;
+            return None;
         }
         self.next_spawn_in_s = self.spawn_interval_s;
+
+        // There's only one active runway in this sim (real hubs spread
+        // load across several in parallel, which this doesn't model), so
+        // never spawn a new arrival or departure onto it while another
+        // aircraft is already using it - that's how two aircraft end up
+        // occupying the same runway at once.
+        let runway_occupied = sim.aircraft.values().any(|a| {
+            a.flight_plan.assigned_runway == runway_ref
+                && matches!(
+                    a.state,
+                    AircraftState::TakeoffRoll
+                        | AircraftState::LinedUp
+                        | AircraftState::LandingRollout
+                )
+        });
+        if runway_occupied {
+            return None;
+        }
 
         let mut rng = rand::thread_rng();
         let occupied: Vec<String> = sim
@@ -56,7 +81,7 @@ impl TrafficGenerator {
             .filter(|g| !g.is_empty() && !occupied.contains(g))
             .collect();
         let Some(gate) = free_gates.choose(&mut rng) else {
-            return;
+            return None;
         };
 
         let (airline, _name) = AIRLINES.choose(&mut rng).unwrap();
@@ -74,12 +99,19 @@ impl TrafficGenerator {
                     ac.flight_plan.origin = other_airport.to_string();
                 }
             }
+            None
         } else if let Ok(()) =
             sim.spawn_departure(&callsign, ac_type, gate, runway_ref, departure_end)
         {
             if let Some(ac) = sim.aircraft.get_mut(&callsign) {
                 ac.flight_plan.destination = other_airport.to_string();
             }
+            Some(SimEvent {
+                callsign,
+                message: format!("at gate {gate}, request pushback"),
+            })
+        } else {
+            None
         }
     }
 }

@@ -128,10 +128,21 @@ impl Simulation {
         let gate_node = self
             .gate_node(gate_ref)
             .ok_or_else(|| format!("unknown gate {gate_ref}"))?;
+        let rw = self
+            .airport
+            .runways
+            .iter()
+            .find(|r| r.ref_ == runway_ref)
+            .ok_or_else(|| format!("unknown runway {runway_ref}"))?;
+        let far_end_node = if rw.node_start == threshold_node {
+            rw.node_end.clone()
+        } else {
+            rw.node_start.clone()
+        };
 
         let route = self
             .graph
-            .find_path(&threshold_node, &gate_node)
+            .find_arrival_path(&threshold_node, &far_end_node, &gate_node)
             .ok_or_else(|| format!("no taxi route from runway {runway_ref} to gate {gate_ref}"))?;
 
         let start = &self.graph.nodes[&threshold_node];
@@ -302,11 +313,20 @@ impl Simulation {
                     }
                     let reached_end = advance_along_route(ac, dt_s, &self.graph);
                     if reached_end {
-                        ac.state = if ac.state == AircraftState::TaxiingToGate {
-                            AircraftState::Parked
+                        if ac.state == AircraftState::TaxiingToGate {
+                            ac.state = AircraftState::Parked;
                         } else {
-                            AircraftState::HoldingShort
-                        };
+                            ac.state = AircraftState::HoldingShort;
+                            // Pilots don't wait to be asked - they check in
+                            // the moment they're holding short and ready.
+                            events.push(SimEvent {
+                                callsign: ac.callsign.clone(),
+                                message: format!(
+                                    "holding short runway {}, ready for departure",
+                                    ac.flight_plan.assigned_runway
+                                ),
+                            });
+                        }
                         ac.ground_speed_kt = 0.0;
                     }
                 }
@@ -340,6 +360,10 @@ impl Simulation {
                     let reached_end = advance_along_route(ac, dt_s, &self.graph);
                     if ac.ground_speed_kt <= LANDING_EXIT_SPEED_KT || reached_end {
                         ac.state = AircraftState::TaxiingToGate;
+                        events.push(SimEvent {
+                            callsign: ac.callsign.clone(),
+                            message: "runway vacated, request taxi to gate".to_string(),
+                        });
                     }
                 }
             }

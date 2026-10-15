@@ -72,6 +72,15 @@ export function ClearancePanel({
     onIssue(selectedCallsign, clearance);
   };
 
+  // A real controller moving on to the next aircraft on a busy frequency
+  // doesn't change anything in the flight's status - it's just "wait a
+  // moment" - so this only speaks, it doesn't touch sim state.
+  const sayStandby = () => {
+    if (!selectedCallsign) return;
+    if (!("speechSynthesis" in window)) return;
+    window.speechSynthesis.speak(new SpeechSynthesisUtterance(`${selectedCallsign}, standby.`));
+  };
+
   const beginRecording = async () => {
     if (isRecording() || startingRef.current) return;
     startingRef.current = true;
@@ -202,6 +211,9 @@ export function ClearancePanel({
                 {b.label}
               </button>
             ))}
+            <button className="standby-button" onClick={sayStandby}>
+              Standby
+            </button>
           </div>
           {role === "ground" && (
             <div className="gate-picker">

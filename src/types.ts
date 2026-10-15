@@ -97,6 +97,13 @@ export interface SimTick {
   aircraft: AircraftSnapshot[];
 }
 
+/** A pilot calling up unprompted - ready for pushback, holding short and
+ * ready for departure, vacated the runway and ready to taxi in. */
+export interface SimEvent {
+  callsign: string;
+  message: string;
+}
+
 export interface AirportSummary {
   icao: string;
   name: string;

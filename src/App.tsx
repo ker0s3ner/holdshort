@@ -15,6 +15,7 @@ import { NewProfileModal } from "./components/NewProfileModal";
 import { LoadingModal } from "./components/LoadingModal";
 import { speakReadback } from "./voice";
 import { isReadbackEnabled } from "./voiceSettings";
+import { enqueuePilotCalls } from "./pilotCalls";
 import type { Profile } from "./profiles";
 import type {
   AircraftSnapshot,
@@ -22,6 +23,7 @@ import type {
   AirportSummary,
   Clearance,
   ControllerRole,
+  SimEvent,
   SimTick,
 } from "./types";
 import "./App.css";
@@ -64,6 +66,16 @@ function App() {
     const unlisten = listen<SimTick>("sim-tick", (event) => {
       setClockS(event.payload.clock_s);
       setAircraft(event.payload.aircraft);
+    });
+    return () => {
+      unlisten.then((f) => f());
+    };
+  }, [screen]);
+
+  useEffect(() => {
+    if (screen !== "session") return;
+    const unlisten = listen<SimEvent[]>("sim-event", (event) => {
+      if (isReadbackEnabled()) enqueuePilotCalls(event.payload);
     });
     return () => {
       unlisten.then((f) => f());

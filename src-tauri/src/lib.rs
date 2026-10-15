@@ -83,9 +83,15 @@ fn start_session(state: tauri::State<AppState>, icao: String) -> Result<(), Stri
 
     // Busier (more gates) airports see more frequent traffic, like real
     // operations - a 27-gate field like Kaunas stays quiet, a 300+ gate hub
-    // like Heathrow or Frankfurt spawns aircraft every few seconds.
+    // like Heathrow or Frankfurt spawns much more often. But this sim only
+    // models one active runway at a time (a real hub splits load across
+    // several in parallel), so the floor has to reflect what a single
+    // runway can actually turn around - about one operation every 40+
+    // seconds - rather than how many gates a huge airport has. The traffic
+    // generator also refuses to spawn onto an occupied runway outright, so
+    // this floor is a pacing choice, not the only thing preventing stacking.
     let gate_count = airport.parking_positions.len().max(1) as f64;
-    let spawn_interval_s = (2200.0 / gate_count).clamp(6.0, 90.0);
+    let spawn_interval_s = (2200.0 / gate_count).clamp(40.0, 150.0);
 
     *state.sim.lock().unwrap() = Simulation::new(airport);
     *state.traffic.lock().unwrap() = TrafficGenerator::new(spawn_interval_s);
@@ -514,10 +520,17 @@ pub fn run() {
                     let mut sim = state.sim.lock().unwrap();
                     let mut traffic = state.traffic.lock().unwrap();
                     let rwy = state.runway.lock().unwrap();
-                    traffic.tick(dt, &mut sim, &rwy.rwy_ref, &rwy.departure_end);
+                    let spawn_event = traffic.tick(dt, &mut sim, &rwy.rwy_ref, &rwy.departure_end);
                     drop(rwy);
-                    sim.tick(dt);
+                    let mut pilot_events = sim.tick(dt);
                     drop(traffic);
+                    pilot_events.extend(spawn_event);
+                    // Pilots calling in unprompted shouldn't wait for the
+                    // once-a-second display snapshot - send these the
+                    // moment they happen so the radio stays responsive.
+                    if !pilot_events.is_empty() {
+                        let _ = app_handle.emit("sim-event", pilot_events);
+                    }
 
                     ticks_since_emit += 1;
                     if ticks_since_emit < 4 {

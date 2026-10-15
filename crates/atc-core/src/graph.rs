@@ -105,6 +105,49 @@ impl TaxiGraph {
         None
     }
 
+    /// Routes a just-touched-down arrival from its landing threshold to a
+    /// gate without ever turning back toward the threshold it came from.
+    /// Plain `find_path` treats the whole surface graph as symmetric, which
+    /// let a fresh arrival's shortest path double back along the runway -
+    /// a physically impossible mid-rollout 180. This walks forward along
+    /// the runway/stopway strip (toward `far_end`) until it reaches the
+    /// first taxiway/taxilane junction - a real exit - then hands off to
+    /// normal routing from there. If the runway has no exit mapped before
+    /// `far_end`, it rolls all the way to the far threshold instead.
+    pub fn find_arrival_path(&self, threshold: &str, far_end: &str, gate: &str) -> Option<Vec<String>> {
+        let mut rollout = vec![threshold.to_string()];
+        let mut current = threshold.to_string();
+        let mut prev: Option<String> = None;
+
+        while current != far_end {
+            let neighbors = self.adjacency.get(&current)?;
+            let has_exit = neighbors.iter().any(|e| {
+                (e.kind == "taxiway" || e.kind == "taxilane")
+                    && prev.as_deref() != Some(e.to.as_str())
+            });
+            if has_exit {
+                break;
+            }
+            let forward = neighbors.iter().find(|e| {
+                (e.kind == "runway" || e.kind == "stopway")
+                    && prev.as_deref() != Some(e.to.as_str())
+            });
+            match forward {
+                Some(edge) => {
+                    prev = Some(current.clone());
+                    current = edge.to.clone();
+                    rollout.push(current.clone());
+                }
+                None => break,
+            }
+        }
+
+        let rest = self.find_path(&current, gate)?;
+        rollout.pop(); // `current` is the first node of `rest` too.
+        rollout.extend(rest);
+        Some(rollout)
+    }
+
     pub fn nearest_node(&self, x: f64, y: f64) -> Option<&Node> {
         self.nodes
             .values()

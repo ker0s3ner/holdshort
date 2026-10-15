@@ -399,6 +399,14 @@ html, body, #root {
   color: #7fffb0;
 }
 
+.standby-button {
+  color: #ffd866 !important;
+}
+
+.standby-button:hover {
+  border-color: #ffd866 !important;
+}
+
 .gate-picker {
   display: flex;
   align-items: center;
