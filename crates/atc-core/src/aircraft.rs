@@ -6,6 +6,20 @@ pub enum FlightRule {
     Arrival,
 }
 
+/// The position the human controller is actually working this session.
+/// Every other position runs on a simple AI timer (see
+/// Simulation::apply_automation) so a single-position session still
+/// produces a complete, moving traffic flow instead of aircraft stuck
+/// waiting forever for a clearance nobody is there to issue.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ControllerRole {
+    Ramp,
+    Ground,
+    Tower,
+    Approach,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AircraftState {
     AtGate,
@@ -57,6 +71,11 @@ pub struct Aircraft {
     /// Sim clock timestamp (seconds) when this aircraft reached Parked, so
     /// it can be despawned after a realistic gate dwell time.
     pub parked_at_s: Option<f64>,
+    /// Sim clock timestamp when this aircraft became ready for the next
+    /// clearance an uncontrolled position would issue (ramp's pushback,
+    /// tower's takeoff clearance) - None once that's been handled, either
+    /// by the human controller or by apply_automation's AI timer.
+    pub ready_since_s: Option<f64>,
 }
 
 impl Aircraft {

@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import type { Clearance } from "./types";
 import { getOllamaModel, getTtsRate, getTtsVoiceName } from "./voiceSettings";
 import { humanizeRadioText, spellCallsign } from "./speech";
+import { speakOnChannel } from "./radio";
 
 /** Plain-English phrase for a clearance, used both as the AI prompt seed
  * and as the spoken fallback when no local AI is available. */
@@ -81,8 +82,5 @@ export async function speakReadback(callsign: string, clearance: Clearance) {
   }
   const setSpeaking = (speaking: boolean) =>
     invoke("set_speaking", { callsign, speaking }).catch(() => {});
-  utter.onstart = () => setSpeaking(true);
-  utter.onend = () => setSpeaking(false);
-  utter.onerror = () => setSpeaking(false);
-  window.speechSynthesis.speak(utter);
+  await speakOnChannel(utter, setSpeaking);
 }

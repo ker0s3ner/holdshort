@@ -1,6 +1,8 @@
 use atc_core::airports::AirportSummary;
 use atc_core::clearance::ClearanceCommand;
-use atc_core::{airports, AircraftState, AirportData, FlightRule, Simulation, TrafficGenerator};
+use atc_core::{
+    airports, AircraftState, AirportData, ControllerRole, FlightRule, Simulation, TrafficGenerator,
+};
 use serde::Serialize;
 use std::path::PathBuf;
 use std::sync::Mutex;
@@ -17,6 +19,7 @@ struct AppState {
     traffic: Mutex<TrafficGenerator>,
     active: Mutex<bool>,
     runway: Mutex<ActiveRunway>,
+    role: Mutex<ControllerRole>,
     data_dir: PathBuf,
 }
 
@@ -73,7 +76,11 @@ fn uninstall_airport(state: tauri::State<AppState>, icao: String) -> Result<(), 
 }
 
 #[tauri::command]
-fn start_session(state: tauri::State<AppState>, icao: String) -> Result<(), String> {
+fn start_session(
+    state: tauri::State<AppState>,
+    icao: String,
+    role: ControllerRole,
+) -> Result<(), String> {
     let airport = airports::load(&state.data_dir, &icao)?;
     let (rwy_ref, departure_end) = airport
         .runways
@@ -99,6 +106,7 @@ fn start_session(state: tauri::State<AppState>, icao: String) -> Result<(), Stri
         rwy_ref,
         departure_end,
     };
+    *state.role.lock().unwrap() = role;
     *state.active.lock().unwrap() = true;
     Ok(())
 }
@@ -523,6 +531,7 @@ pub fn run() {
                     rwy_ref: "15/33".to_string(),
                     departure_end: "15".to_string(),
                 }),
+                role: Mutex::new(ControllerRole::Ground),
                 data_dir,
             });
 
@@ -547,6 +556,7 @@ pub fn run() {
                     let spawn_event = traffic.tick(dt, &mut sim, &rwy.rwy_ref, &rwy.departure_end);
                     drop(rwy);
                     let mut pilot_events = sim.tick(dt);
+                    sim.apply_automation(*state.role.lock().unwrap());
                     drop(traffic);
                     pilot_events.extend(spawn_event);
                     // Pilots calling in unprompted shouldn't wait for the

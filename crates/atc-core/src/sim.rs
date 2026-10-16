@@ -1,4 +1,4 @@
-use crate::aircraft::{Aircraft, AircraftState, FlightPlan, FlightRule};
+use crate::aircraft::{Aircraft, AircraftState, ControllerRole, FlightPlan, FlightRule};
 use crate::clearance::{Clearance, ClearanceCommand};
 use crate::graph::TaxiGraph;
 use crate::model::AirportData;
@@ -16,6 +16,12 @@ const LANDING_EXIT_SPEED_KT: f64 = 15.0;
 /// How long a parked arrival sits at the gate before despawning (deplaning
 /// + a plausible turnaround), freeing the gate for the next spawn.
 const GATE_DWELL_S: f64 = 150.0;
+/// How long an AI ramp position takes to clear an aircraft for pushback
+/// when the human controller isn't working ramp themselves.
+const AUTO_PUSHBACK_DELAY_S: f64 = 25.0;
+/// How long an AI tower position takes to clear a holding-short aircraft
+/// for takeoff when the human controller isn't working tower themselves.
+const AUTO_TAKEOFF_DELAY_S: f64 = 20.0;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct SimEvent {
@@ -109,6 +115,7 @@ impl Simulation {
             cleared_pushback: false,
             is_speaking: false,
             parked_at_s: None,
+            ready_since_s: Some(self.clock_s),
         };
         self.aircraft.insert(callsign.to_string(), aircraft);
         Ok(())
@@ -171,6 +178,7 @@ impl Simulation {
             cleared_pushback: false,
             is_speaking: false,
             parked_at_s: None,
+            ready_since_s: None,
         };
         self.aircraft.insert(callsign.to_string(), aircraft);
         Ok(())
@@ -216,6 +224,7 @@ impl Simulation {
                 if ac.state == AircraftState::AtGate {
                     ac.cleared_pushback = true;
                     ac.state = AircraftState::PushingBack;
+                    ac.ready_since_s = None;
                 }
             }
             Clearance::TaxiToRunway { via_hold_short } => {
@@ -251,12 +260,14 @@ impl Simulation {
             Clearance::LineUpAndWait => {
                 ac.hold_short_node = None;
                 ac.state = AircraftState::LinedUp;
+                ac.ready_since_s = None;
             }
             Clearance::ClearedForTakeoff => {
                 ac.hold_short_node = None;
                 ac.cleared_for_takeoff = true;
                 ac.state = AircraftState::TakeoffRoll;
                 ac.ground_speed_kt = ac.ground_speed_kt.max(1.0);
+                ac.ready_since_s = None;
             }
             Clearance::ClearedToLand => {
                 ac.cleared_to_land = true;
@@ -317,6 +328,7 @@ impl Simulation {
                             ac.state = AircraftState::Parked;
                         } else {
                             ac.state = AircraftState::HoldingShort;
+                            ac.ready_since_s = Some(self.clock_s);
                             // Pilots don't wait to be asked - they check in
                             // the moment they're holding short and ready.
                             events.push(SimEvent {
@@ -374,6 +386,61 @@ impl Simulation {
         }
 
         events
+    }
+
+    /// Runs every position the human controller *isn't* working on a
+    /// simple AI timer, so a single-position session still produces a
+    /// complete, moving traffic flow instead of aircraft stuck waiting
+    /// forever for a clearance nobody is there to issue - a ground-only
+    /// session still sees ramp push its aircraft and tower launch them,
+    /// just on a plausible delay rather than instantly.
+    pub fn apply_automation(&mut self, active_role: ControllerRole) {
+        let clock = self.clock_s;
+        let callsigns: Vec<String> = self.aircraft.keys().cloned().collect();
+
+        for cs in &callsigns {
+            let Some(ac) = self.aircraft.get(cs) else { continue };
+            let Some(since) = ac.ready_since_s else { continue };
+
+            match ac.state {
+                AircraftState::AtGate if active_role != ControllerRole::Ramp => {
+                    if clock - since >= AUTO_PUSHBACK_DELAY_S {
+                        if let Some(ac) = self.aircraft.get_mut(cs) {
+                            ac.cleared_pushback = true;
+                            ac.state = AircraftState::PushingBack;
+                            ac.ready_since_s = None;
+                        }
+                    }
+                }
+                AircraftState::HoldingShort if active_role != ControllerRole::Tower => {
+                    if clock - since < AUTO_TAKEOFF_DELAY_S {
+                        continue;
+                    }
+                    let rwy = ac.flight_plan.assigned_runway.clone();
+                    let runway_occupied = self.aircraft.values().any(|other| {
+                        &other.callsign != cs
+                            && other.flight_plan.assigned_runway == rwy
+                            && matches!(
+                                other.state,
+                                AircraftState::TakeoffRoll
+                                    | AircraftState::LinedUp
+                                    | AircraftState::LandingRollout
+                            )
+                    });
+                    if runway_occupied {
+                        continue;
+                    }
+                    if let Some(ac) = self.aircraft.get_mut(cs) {
+                        ac.hold_short_node = None;
+                        ac.cleared_for_takeoff = true;
+                        ac.state = AircraftState::TakeoffRoll;
+                        ac.ground_speed_kt = ac.ground_speed_kt.max(1.0);
+                        ac.ready_since_s = None;
+                    }
+                }
+                _ => {}
+            }
+        }
     }
 }
 

@@ -4,6 +4,8 @@ import { frequencyFor } from "../frequencies";
 import { isRecording, startListening, stopListeningAndTranscribe } from "../stt";
 import { getPttKey, isSttEnabled } from "../voiceSettings";
 import { spellCallsign } from "../speech";
+import { speakOnChannel } from "../radio";
+import { parseClearance } from "../clearanceParser";
 
 interface Props {
   airport: AirportData;
@@ -79,7 +81,7 @@ export function ClearancePanel({
   const sayStandby = () => {
     if (!selectedCallsign) return;
     if (!("speechSynthesis" in window)) return;
-    window.speechSynthesis.speak(new SpeechSynthesisUtterance(`${spellCallsign(selectedCallsign)}, standby.`));
+    void speakOnChannel(new SpeechSynthesisUtterance(`${spellCallsign(selectedCallsign)}, standby.`));
   };
 
   const beginRecording = async () => {
@@ -107,7 +109,15 @@ export function ClearancePanel({
     setRecording(false);
     try {
       const text = await stopListeningAndTranscribe();
-      setHeard(text);
+      const clearance = parseClearance(text);
+      if (clearance && selectedCallsign) {
+        onIssue(selectedCallsign, clearance);
+        setHeard(`"${text}" → issued`);
+      } else if (clearance && !selectedCallsign) {
+        setHeard(`"${text}" - understood, but no aircraft selected`);
+      } else {
+        setHeard(`"${text}" - didn't recognize a clearance in that`);
+      }
     } catch (e) {
       setHeard(`${e}`);
     }

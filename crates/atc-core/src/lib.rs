@@ -6,7 +6,7 @@ pub mod model;
 pub mod sim;
 pub mod traffic;
 
-pub use aircraft::{Aircraft, AircraftState, FlightPlan, FlightRule};
+pub use aircraft::{Aircraft, AircraftState, ControllerRole, FlightPlan, FlightRule};
 pub use clearance::{Clearance, ClearanceCommand};
 pub use graph::TaxiGraph;
 pub use model::AirportData;

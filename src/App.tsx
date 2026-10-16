@@ -84,7 +84,7 @@ function App() {
 
   const startProfile = useCallback((profile: Profile) => {
     setSessionLoading(true);
-    invoke("start_session", { icao: profile.icao })
+    invoke("start_session", { icao: profile.icao, role: profile.role })
       .then(() => invoke<AirportData>("get_airport"))
       .then((data) => {
         setAirport(data);

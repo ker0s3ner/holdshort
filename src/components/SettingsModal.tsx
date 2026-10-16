@@ -251,7 +251,9 @@ export function SettingsModal({ onClose, onRerunSetup }: Props) {
           https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin
         </code>
         . Once enabled, hold the mic button in the clearance panel or the push-to-talk key above
-        to talk - what it hears shows up as text, it isn't parsed into clearances yet.
+        to talk - it tries to match what you say to a clearance (e.g. "cleared for takeoff") and
+        issues it to the selected aircraft. Keyword matching, not a real language model, so stick
+        close to the actual phrase.
       </p>
     </Modal>
   );
