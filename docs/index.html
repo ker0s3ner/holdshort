@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Holdshort — a ground-ops ATC simulator</title>
+<meta name="description" content="Holdshort is a ground-operations ATC simulator with real-world taxiway and runway geometry, A* taxi routing, procedural AI traffic, and voice-driven clearances." />
+<link rel="icon" href="assets/favicon.ico" />
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<header class="site-header">
+  <div class="brand">
+    <img src="assets/icon.png" alt="Holdshort icon" />
+    Holdshort
+  </div>
+  <nav class="site-nav">
+    <a href="index.html" class="active">Home</a>
+    <a href="coverage.html">Coverage</a>
+    <a href="roadmap.html">Roadmap</a>
+    <a href="plugins.html">Plugins</a>
+    <a href="https://github.com/ker0s3ner/holdshort">GitHub</a>
+  </nav>
+</header>
+
+<main>
+  <section class="hero">
+    <img src="assets/icon.png" class="icon-lg" alt="" />
+    <h1>Ground control, for real airports.</h1>
+    <p class="lede">
+      A ground-operations ATC simulator built on real-world taxiway, runway, and gate
+      geometry pulled straight from OpenStreetMap — with A* taxi routing, a full
+      ground/tower clearance state machine, procedural AI traffic, and voice-driven
+      clearances you speak and hear like a real cab.
+    </p>
+    <div class="btn-row">
+      <a class="btn" href="https://github.com/ker0s3ner/holdshort/releases/latest">Download for macOS</a>
+      <a class="btn secondary" href="https://github.com/ker0s3ner/holdshort">View source</a>
+    </div>
+  </section>
+
+  <div class="note">
+    Holdshort is a free, hobby-built side project — the macOS build is signed ad-hoc
+    rather than with a paid Apple Developer certificate, so on first launch Gatekeeper
+    will say the app "cannot be verified." Right-click the app → <strong>Open</strong>
+    (or System Settings → Privacy &amp; Security → <strong>Open Anyway</strong>) to run it.
+  </div>
+
+  <h2>What it does</h2>
+  <div class="cards">
+    <div class="card">
+      <h3>Real airport geometry</h3>
+      <p>Every taxiway, runway, gate, and apron is converted from live OpenStreetMap
+      data, not a hand-drawn approximation.</p>
+    </div>
+    <div class="card">
+      <h3>Full clearance state machine</h3>
+      <p>Pushback, taxi, hold short, line up and wait, takeoff, landing rollout,
+      gate arrival — every step is a real clearance you issue and the aircraft obeys.</p>
+    </div>
+    <div class="card">
+      <h3>Voice in, voice out</h3>
+      <p>Speak your clearances and have them transcribed locally with whisper.cpp;
+      pilots read them back in natural, NATO-aware synthesized speech.</p>
+    </div>
+    <div class="card">
+      <h3>Unplayed positions automate</h3>
+      <p>Only working Ground? Ramp and Tower keep traffic moving on their own so
+      nothing gets stuck waiting on a controller who isn't there.</p>
+    </div>
+    <div class="card">
+      <h3>Two real views</h3>
+      <p>A Surface Movement Radar plan display, and a Tower Cab view rendered over
+      real satellite imagery with a weather-visibility ring.</p>
+    </div>
+    <div class="card">
+      <h3>Procedural, regional traffic</h3>
+      <p>Airlines and routes are drawn from region-aware pools, so you won't see
+      American Airlines spawning in Kaunas.</p>
+    </div>
+  </div>
+
+  <h2>Coverage</h2>
+  <p>
+    Holdshort currently ships <strong>48 airports across 14 countries</strong>, each
+    with real converted surface data. See the <a href="coverage.html">coverage map</a>
+    for the full breakdown, or jump straight to the <a href="roadmap.html">roadmap</a>
+    to see what's being worked on next.
+  </p>
+</main>
+
+<footer class="site-footer">
+  Holdshort is a free, open-source hobby project. Airport surface data is derived
+  from <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors
+  (ODbL). Tower Cab satellite imagery is served by Esri World Imagery.
+  <br /><a href="https://github.com/ker0s3ner/holdshort">github.com/ker0s3ner/holdshort</a>
+</footer>
+</body>
+</html>

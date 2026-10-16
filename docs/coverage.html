@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Coverage — Holdshort</title>
+<link rel="icon" href="assets/favicon.ico" />
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<header class="site-header">
+  <div class="brand">
+    <img src="assets/icon.png" alt="Holdshort icon" />
+    Holdshort
+  </div>
+  <nav class="site-nav">
+    <a href="index.html">Home</a>
+    <a href="coverage.html" class="active">Coverage</a>
+    <a href="roadmap.html">Roadmap</a>
+    <a href="plugins.html">Plugins</a>
+    <a href="https://github.com/ker0s3ner/holdshort">GitHub</a>
+  </nav>
+</header>
+
+<main>
+  <h1>Coverage</h1>
+  <p class="lede">
+    Every airport below ships with real converted taxiway, runway, and gate geometry —
+    not an approximation. Hover a country to see what's included.
+  </p>
+
+  <div class="legend">
+    <span class="legend-item"><span class="legend-swatch" style="background:#3dff6e"></span> Full coverage — every notable airport in the country is modeled</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:#223527"></span><span class="legend-swatch" style="background:#ffcf5e;border-radius:50%;margin-left:-22px;width:8px;height:8px;margin-top:3px"></span> Partial — dots mark each modeled airport</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:#5a2222"></span> Not yet supported</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:#3a3a3a"></span> Excluded — hover for why</span>
+  </div>
+
+  <div id="map-wrap">
+    <svg id="world-map" viewBox="0 0 960 500"></svg>
+  </div>
+  <div id="map-tooltip"></div>
+
+  <h2>Full list</h2>
+  <div id="country-list"></div>
+</main>
+
+<footer class="site-footer">
+  Country borders from <a href="https://github.com/topojson/world-atlas">world-atlas</a>
+  (public domain, via Natural Earth). Airport data from
+  <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors (ODbL).
+  <br /><a href="https://github.com/ker0s3ner/holdshort">github.com/ker0s3ner/holdshort</a>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/topojson-client@3.1.0/dist/topojson-client.min.js"></script>
+<script src="coverage.js"></script>
+</body>
+</html>

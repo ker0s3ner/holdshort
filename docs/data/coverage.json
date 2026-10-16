@@ -1,0 +1,407 @@
+{
+  "countries": [
+    {
+      "name": "Denmark",
+      "iso": 208,
+      "status": "partial",
+      "airports": [
+        {
+          "icao": "EKBI",
+          "name": "Billund Airport",
+          "lat": 55.74043868125001,
+          "lon": 9.15584044375
+        },
+        {
+          "icao": "EKCH",
+          "name": "Copenhagen Kastrup Airport",
+          "lat": 55.61532590634923,
+          "lon": 12.642799758730158
+        }
+      ]
+    },
+    {
+      "name": "Estonia",
+      "iso": 233,
+      "status": "full",
+      "airports": [
+        {
+          "icao": "EEEI",
+          "name": "\u00c4mari Air Base",
+          "lat": 59.25982922777777,
+          "lon": 24.205991538888885
+        },
+        {
+          "icao": "EEKA",
+          "name": "K\u00e4rdla Airport",
+          "lat": 58.990651529999994,
+          "lon": 22.831044839999997
+        },
+        {
+          "icao": "EEKE",
+          "name": "Kuressaare Airport",
+          "lat": 58.230596771428566,
+          "lon": 22.509559228571426
+        },
+        {
+          "icao": "EEPU",
+          "name": "P\u00e4rnu Airport",
+          "lat": 58.41827044444444,
+          "lon": 24.47212191111111
+        },
+        {
+          "icao": "EETN",
+          "name": "Tallinn Airport",
+          "lat": 59.413277883333336,
+          "lon": 24.827112916666664
+        },
+        {
+          "icao": "EETU",
+          "name": "Tartu Airport",
+          "lat": 58.3074604,
+          "lon": 26.690455500000002
+        }
+      ]
+    },
+    {
+      "name": "Finland",
+      "iso": 246,
+      "status": "partial",
+      "airports": [
+        {
+          "icao": "EFHK",
+          "name": "Helsinki-Vantaa Airport",
+          "lat": 60.32114117916665,
+          "lon": 24.953134143055546
+        },
+        {
+          "icao": "EFRO",
+          "name": "Rovaniemi Airport",
+          "lat": 66.56666685,
+          "lon": 25.833934542857143
+        },
+        {
+          "icao": "EFTP",
+          "name": "Tampere-Pirkkala Airport",
+          "lat": 61.41376767727272,
+          "lon": 23.602683
+        }
+      ]
+    },
+    {
+      "name": "Germany",
+      "iso": 276,
+      "status": "partial",
+      "airports": [
+        {
+          "icao": "EDDF",
+          "name": "Frankfurt Airport",
+          "lat": 50.034299884375024,
+          "lon": 8.547508005208332
+        }
+      ]
+    },
+    {
+      "name": "Ireland",
+      "iso": 372,
+      "status": "partial",
+      "airports": [
+        {
+          "icao": "EICK",
+          "name": "Cork Airport",
+          "lat": 51.84197815,
+          "lon": -8.490375196153847
+        },
+        {
+          "icao": "EIDW",
+          "name": "Dublin Airport",
+          "lat": 53.42865746419754,
+          "lon": -6.260088923456792
+        },
+        {
+          "icao": "EINN",
+          "name": "Shannon Airport",
+          "lat": 52.701379415,
+          "lon": -8.926075445
+        }
+      ]
+    },
+    {
+      "name": "Japan",
+      "iso": 392,
+      "status": "partial",
+      "airports": [
+        {
+          "icao": "RJTT",
+          "name": "Tokyo Haneda Airport",
+          "lat": 35.54981971644738,
+          "lon": 139.78359165657898
+        }
+      ]
+    },
+    {
+      "name": "Latvia",
+      "iso": 428,
+      "status": "full",
+      "airports": [
+        {
+          "icao": "EVLA",
+          "name": "Liep\u0101ja International Airport",
+          "lat": 56.51788498999999,
+          "lon": 21.098868340000003
+        },
+        {
+          "icao": "EVRA",
+          "name": "Riga International Airport",
+          "lat": 56.92065826470588,
+          "lon": 23.970703711764706
+        },
+        {
+          "icao": "EVTA",
+          "name": "J\u016brmala Airport",
+          "lat": 56.94163387619045,
+          "lon": 23.224952452380954
+        }
+      ]
+    },
+    {
+      "name": "Lithuania",
+      "iso": 440,
+      "status": "full",
+      "airports": [
+        {
+          "icao": "EYKA",
+          "name": "Kaunas Airport",
+          "lat": 54.96392906315789,
+          "lon": 24.084884010526316
+        },
+        {
+          "icao": "EYPA",
+          "name": "Palanga International Airport",
+          "lat": 55.97327445454546,
+          "lon": 21.093873736363637
+        },
+        {
+          "icao": "EYSA",
+          "name": "\u0160iauliai International Airport",
+          "lat": 55.89212271333334,
+          "lon": 23.3942482
+        },
+        {
+          "icao": "EYSB",
+          "name": "Barysiai Airfield",
+          "lat": 56.0707691,
+          "lon": 23.556519766666668
+        },
+        {
+          "icao": "EYVI",
+          "name": "Vilnius Airport",
+          "lat": 54.63235015,
+          "lon": 25.284532616666667
+        }
+      ]
+    },
+    {
+      "name": "Norway",
+      "iso": 578,
+      "status": "partial",
+      "airports": [
+        {
+          "icao": "ENBR",
+          "name": "Bergen Flesland Airport",
+          "lat": 60.29427161111111,
+          "lon": 5.217841077777778
+        },
+        {
+          "icao": "ENGM",
+          "name": "Oslo Gardermoen Airport",
+          "lat": 60.1956788,
+          "lon": 11.095647757142855
+        },
+        {
+          "icao": "ENVA",
+          "name": "Trondheim Vaernes Airport",
+          "lat": 63.457591694117646,
+          "lon": 10.923833011764707
+        },
+        {
+          "icao": "ENZV",
+          "name": "Stavanger Sola Airport",
+          "lat": 58.88002019142856,
+          "lon": 5.633355728571427
+        }
+      ]
+    },
+    {
+      "name": "Sweden",
+      "iso": 752,
+      "status": "partial",
+      "airports": [
+        {
+          "icao": "ESGG",
+          "name": "Gothenburg Landvetter Airport",
+          "lat": 57.66257928999998,
+          "lon": 12.279583370000001
+        },
+        {
+          "icao": "ESMS",
+          "name": "Malmo Airport",
+          "lat": 55.531263033333325,
+          "lon": 13.372842791666665
+        },
+        {
+          "icao": "ESSA",
+          "name": "Stockholm Arlanda Airport",
+          "lat": 59.65000093333333,
+          "lon": 17.93643671333333
+        },
+        {
+          "icao": "ESSB",
+          "name": "Stockholm Bromma Airport",
+          "lat": 59.35265446315791,
+          "lon": 17.94645068421053
+        }
+      ]
+    },
+    {
+      "name": "Turkey",
+      "iso": 792,
+      "status": "partial",
+      "airports": [
+        {
+          "icao": "LTFM",
+          "name": "Istanbul Airport",
+          "lat": 41.278947172435906,
+          "lon": 28.725522986538447
+        }
+      ]
+    },
+    {
+      "name": "United Arab Emirates",
+      "iso": 784,
+      "status": "partial",
+      "airports": [
+        {
+          "icao": "OMDB",
+          "name": "Dubai International Airport",
+          "lat": 25.250704004878056,
+          "lon": 55.37177036219511
+        }
+      ]
+    },
+    {
+      "name": "United Kingdom",
+      "iso": 826,
+      "status": "partial",
+      "airports": [
+        {
+          "icao": "EGBB",
+          "name": "Birmingham Airport",
+          "lat": 52.45265552222222,
+          "lon": -1.7467189481481482
+        },
+        {
+          "icao": "EGCC",
+          "name": "Manchester Airport",
+          "lat": 53.35009352653062,
+          "lon": -2.278524465306123
+        },
+        {
+          "icao": "EGGW",
+          "name": "London Luton Airport",
+          "lat": 51.87493719444444,
+          "lon": -0.36673585
+        },
+        {
+          "icao": "EGKK",
+          "name": "London Gatwick Airport",
+          "lat": 51.14942237592594,
+          "lon": -0.18843877592592595
+        },
+        {
+          "icao": "EGLL",
+          "name": "London Heathrow Airport",
+          "lat": 51.47101661666665,
+          "lon": -0.45899987166666656
+        },
+        {
+          "icao": "EGPF",
+          "name": "Glasgow Airport",
+          "lat": 55.871961238888886,
+          "lon": -4.433223294444445
+        },
+        {
+          "icao": "EGPH",
+          "name": "Edinburgh Airport",
+          "lat": 55.949471,
+          "lon": -3.374062507142857
+        },
+        {
+          "icao": "EGSS",
+          "name": "London Stansted Airport",
+          "lat": 51.88399444736842,
+          "lon": 0.23329467894736844
+        }
+      ]
+    },
+    {
+      "name": "United States",
+      "iso": 840,
+      "status": "partial",
+      "airports": [
+        {
+          "icao": "KATL",
+          "name": "Hartsfield-Jackson Atlanta International Airport",
+          "lat": 33.63750678617021,
+          "lon": -84.42729411063827
+        },
+        {
+          "icao": "KBUR",
+          "name": "Hollywood Burbank Airport",
+          "lat": 34.19875900930233,
+          "lon": -118.35802710465117
+        },
+        {
+          "icao": "KDFW",
+          "name": "Dallas Fort Worth International Airport",
+          "lat": 32.897281866917275,
+          "lon": -97.03817869473681
+        },
+        {
+          "icao": "KJFK",
+          "name": "John F. Kennedy International Airport",
+          "lat": 40.640751825882354,
+          "lon": -73.77699197294115
+        },
+        {
+          "icao": "KLAX",
+          "name": "Los Angeles International Airport",
+          "lat": 33.94124931157024,
+          "lon": -118.40699123223142
+        },
+        {
+          "icao": "KORD",
+          "name": "Chicago O'Hare International Airport",
+          "lat": 41.97633364899329,
+          "lon": -87.90950546308726
+        }
+      ]
+    }
+  ],
+  "excluded": [
+    {
+      "name": "Russia",
+      "iso": 643,
+      "reason": "Not modeled at this time \u2014 we are not maintaining airspace/airport data for this region."
+    },
+    {
+      "name": "North Korea",
+      "iso": 408,
+      "reason": "Not modeled at this time \u2014 reliable open aviation data for this region does not exist."
+    },
+    {
+      "name": "Israel",
+      "iso": 376,
+      "reason": "Not modeled at this time \u2014 we are not maintaining airspace/airport data for this active conflict region."
+    }
+  ]
+}

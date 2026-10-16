@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Plugins — Holdshort</title>
+<link rel="icon" href="assets/favicon.ico" />
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<header class="site-header">
+  <div class="brand">
+    <img src="assets/icon.png" alt="Holdshort icon" />
+    Holdshort
+  </div>
+  <nav class="site-nav">
+    <a href="index.html">Home</a>
+    <a href="coverage.html">Coverage</a>
+    <a href="roadmap.html">Roadmap</a>
+    <a href="plugins.html" class="active">Plugins</a>
+    <a href="https://github.com/ker0s3ner/holdshort">GitHub</a>
+  </nav>
+</header>
+
+<main>
+  <h1>Plugins</h1>
+  <p class="lede">
+    Plugins are extras you switch on from Settings → Plugins, built around the same
+    on/off pattern a future community plugin system would use.
+  </p>
+
+  <div class="note">
+    There's no sandboxed runtime for loading third-party plugin code yet — safely
+    running code someone else wrote is a real engineering project of its own. So for
+    now, "plugins" means a small set of built-in extras rather than an "install from
+    URL" box that doesn't actually do anything. A real third-party plugin SDK is on
+    the <a href="roadmap.html">roadmap</a>.
+  </div>
+
+  <h2>Available now</h2>
+  <div class="plugin-list">
+    <div class="plugin-item">
+      <div>
+        <h3 style="margin-top:0">World Traffic Map</h3>
+        <p style="color:var(--text-muted); font-size:14px; margin-bottom:0">
+          A VatSpy-style world map showing where each aircraft in your current
+          session is really flying to or from. It only knows about traffic in your
+          own local sim — there's no shared network connecting separate Holdshort
+          sessions together yet, so it can't show other players. That's the kind of
+          thing a future community plugin (or built-in multiplayer, see the
+          <a href="roadmap.html">roadmap</a>) could change.
+        </p>
+      </div>
+      <span class="status">Built-in</span>
+    </div>
+  </div>
+
+  <h2>Building your own</h2>
+  <p>
+    There isn't a public plugin API to build against yet. If you've got an idea for
+    one — a shared network layer, alternate traffic sources, custom airport packs —
+    open a discussion on <a href="https://github.com/ker0s3ner/holdshort/issues">GitHub</a>.
+    What ships first here will likely be shaped by what people actually ask for.
+  </p>
+</main>
+
+<footer class="site-footer">
+  Holdshort is a free, open-source hobby project.
+  <br /><a href="https://github.com/ker0s3ner/holdshort">github.com/ker0s3ner/holdshort</a>
+</footer>
+</body>
+</html>
