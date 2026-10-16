@@ -130,6 +130,28 @@ export function spellCallsign(callsign: string): string {
   return spellIdentifier(callsign);
 }
 
+/** Finds which of the given callsigns a pilot's transmission was actually
+ * addressed to, e.g. "United 6806 heavy, pushback approved, tail right"
+ * -> "UAL6806H" - matching on the airline's telephony name plus the flight
+ * number, the same pieces spellCallsign() reads them out as, rather than
+ * requiring the controller to click-select the aircraft before every
+ * transmission. Real ATC clearances always restate the callsign; this is
+ * just undoing spellCallsign() well enough to resolve it. */
+export function matchSpokenCallsign(text: string, callsigns: string[]): string | null {
+  const lower = text.toLowerCase();
+  for (const callsign of callsigns) {
+    const match = callsign.match(/^([A-Z]{3})(\d+)([A-Z]?)$/);
+    if (!match) continue;
+    const [, prefix, digits] = match;
+    const airline = AIRLINES[prefix];
+    if (!airline) continue;
+    if (lower.includes(airline.toLowerCase()) && lower.includes(digits)) {
+      return callsign;
+    }
+  }
+  return null;
+}
+
 /** Rewrites every alphanumeric identifier found in free text (runway
  * numbers, taxiway/gate refs, flight numbers) so a generic TTS voice reads
  * them the ATC way instead of guessing at a plain number. */

@@ -3,7 +3,7 @@ import type { AircraftSnapshot, AirportData, Clearance, ControllerRole } from ".
 import { frequencyFor } from "../frequencies";
 import { isRecording, startListening, stopListeningAndTranscribe } from "../stt";
 import { getPttKey, isSttEnabled } from "../voiceSettings";
-import { spellCallsign } from "../speech";
+import { matchSpokenCallsign, spellCallsign } from "../speech";
 import { speakOnChannel } from "../radio";
 import { parseClearance } from "../clearanceParser";
 import { STATE_LABELS } from "../aircraftState";
@@ -111,10 +111,17 @@ export function ClearancePanel({
     try {
       const text = await stopListeningAndTranscribe();
       const clearance = parseClearance(text);
-      if (clearance && selectedCallsign) {
-        onIssue(selectedCallsign, clearance);
-        setHeard(`"${text}" → issued`);
-      } else if (clearance && !selectedCallsign) {
+      const spokenCallsign = matchSpokenCallsign(
+        text,
+        aircraft.map((a) => a.callsign)
+      );
+      const target = spokenCallsign ?? selectedCallsign;
+      if (spokenCallsign && spokenCallsign !== selectedCallsign) onSelect(spokenCallsign);
+
+      if (clearance && target) {
+        onIssue(target, clearance);
+        setHeard(`"${text}" → issued to ${target}`);
+      } else if (clearance && !target) {
         setHeard(`"${text}" - understood, but no aircraft selected`);
       } else {
         setHeard(`"${text}" - didn't recognize a clearance in that`);
