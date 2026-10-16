@@ -110,6 +110,23 @@ function App() {
     setAircraft([]);
   }, []);
 
+  /** Station Select's "Connect" - switches to a different installed
+   * airport/position without leaving the session for the full launcher,
+   * the way CRC's own Station Select dialog works. Keeps the current
+   * SMR/Tower Cab view mode rather than requiring a whole new profile. */
+  const switchStation = useCallback((icao: string, newRole: ControllerRole) => {
+    setSessionLoading(true);
+    invoke("start_session", { icao, role: newRole })
+      .then(() => invoke<AirportData>("get_airport"))
+      .then((data) => {
+        setAirport(data);
+        setRole(newRole);
+        setSelectedCallsign(null);
+      })
+      .catch((e) => setError(String(e)))
+      .finally(() => setSessionLoading(false));
+  }, []);
+
   const onIssue = useCallback((callsign: string, clearance: Clearance) => {
     invoke("issue_clearance", { command: { callsign, clearance } })
       .then(() => {
@@ -197,11 +214,13 @@ function App() {
         clock={`${pad(hh)}:${pad(mm)}:${pad(ss)}`}
         selected={selected}
         depArrOpen={depArrOpen}
-        onBack={exitToLauncher}
         onToggleDepArr={() => setDepArrOpen((v) => !v)}
         worldMapEnabled={isPluginEnabled("worldmap")}
         worldMapOpen={worldMapOpen}
         onToggleWorldMap={() => setWorldMapOpen((v) => !v)}
+        installedAirports={airports}
+        onSwitchStation={switchStation}
+        onDisconnect={exitToLauncher}
       />
       <div className="main-area">
         {viewMode === "smr" ? (

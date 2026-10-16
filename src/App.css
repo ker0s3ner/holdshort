@@ -554,19 +554,50 @@ html, body, #root {
   font-size: 11px;
 }
 
-.back-button {
+.station-button {
   background: transparent;
   border: 1px solid var(--border-hover);
   color: var(--text-muted);
-  padding: 4px 10px;
+  padding: 3px 8px;
   border-radius: 3px;
   cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+}
+
+.station-button:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.tb-wind {
+  color: var(--text-muted);
   font-size: 11px;
 }
 
-.back-button:hover {
-  border-color: var(--accent);
+.runway-option {
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  color: var(--text);
+  cursor: pointer;
+  padding: 4px 2px;
+}
+
+.runway-option:hover {
   color: var(--accent);
+}
+
+.station-select-box {
+  width: 360px;
+}
+
+.station-select-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 6px;
 }
 
 .launcher {
@@ -947,13 +978,16 @@ html, body, #root {
 }
 
 .field-label select,
-.field-label input {
+.field-label input,
+.field-label textarea {
   background: var(--bg-button);
   border: 1px solid var(--border-hover);
   color: var(--text);
   padding: 8px;
   font-size: 12px;
   border-radius: 3px;
+  font-family: inherit;
+  resize: vertical;
 }
 
 .new-profile-box {

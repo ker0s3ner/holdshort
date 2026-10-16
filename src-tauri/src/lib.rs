@@ -121,6 +121,31 @@ fn get_airport(state: tauri::State<AppState>) -> AirportData {
     state.sim.lock().unwrap().airport.clone()
 }
 
+/// Switches which runway new departures/arrivals are assigned to - real
+/// airports change their active runway with the wind, this was hardcoded
+/// to the airport data's first runway and never changeable at runtime.
+/// Traffic already in the air/on the ground on the old runway keeps going;
+/// this only affects what gets assigned next.
+#[tauri::command]
+fn set_active_runway(state: tauri::State<AppState>, rwy_ref: String, departure_end: String) -> Result<(), String> {
+    let sim = state.sim.lock().unwrap();
+    let rw = sim
+        .airport
+        .runways
+        .iter()
+        .find(|r| r.ref_ == rwy_ref)
+        .ok_or_else(|| format!("unknown runway {rwy_ref}"))?;
+    if !rw.ends.iter().any(|e| e == &departure_end) {
+        return Err(format!("{rwy_ref} has no end {departure_end}"));
+    }
+    drop(sim);
+    *state.runway.lock().unwrap() = ActiveRunway {
+        rwy_ref,
+        departure_end,
+    };
+    Ok(())
+}
+
 #[tauri::command]
 fn get_traffic(state: tauri::State<AppState>) -> SimTick {
     build_snapshot(&state.sim.lock().unwrap())
@@ -602,7 +627,8 @@ pub fn run() {
             pull_ollama_model,
             refresh_launch_services,
             open_microphone_settings,
-            reset_microphone_permission
+            reset_microphone_permission,
+            set_active_runway
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

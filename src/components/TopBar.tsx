@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import type { AircraftSnapshot, AirportData, ControllerRole } from "../types";
+import type { AircraftSnapshot, AirportData, AirportSummary, ControllerRole } from "../types";
 import { frequencyFor } from "../frequencies";
 import {
   getDatablockMode,
@@ -9,6 +9,9 @@ import {
   setShowLabels,
   type DatablockMode,
 } from "../displaySettings";
+import { getAtisLetter } from "../atisSettings";
+import { StationSelectModal } from "./StationSelectModal";
+import { AtisModal } from "./AtisModal";
 
 type ViewMode = "smr" | "tower";
 
@@ -19,19 +22,31 @@ interface Props {
   clock: string;
   selected: AircraftSnapshot | null;
   depArrOpen: boolean;
-  onBack: () => void;
   onToggleDepArr: () => void;
   worldMapEnabled: boolean;
   worldMapOpen: boolean;
   onToggleWorldMap: () => void;
+  installedAirports: AirportSummary[];
+  onSwitchStation: (icao: string, role: ControllerRole) => void;
+  onDisconnect: () => void;
 }
 
 const METAR_REFRESH_MS = 5 * 60 * 1000;
 
-/** The two-row CRC-style status bar: position/frequency/clock/METAR up top,
- * a thin menu strip underneath for the real view settings that exist
- * (datablock density, label visibility, the dep/arr window) rather than
- * decorative menu labels with nothing behind them. */
+/** Parses the wind group out of a raw METAR ("25008KT", "VRB03G15KT") into
+ * the compact "DDD/SS" a real status bar shows - the full METAR is still
+ * available as a tooltip rather than cluttering the bar with the whole
+ * string. */
+function parseWind(metar: string): string | null {
+  const m = metar.match(/\b(\d{3}|VRB)(\d{2,3})(?:G\d{2,3})?KT\b/);
+  if (!m) return null;
+  return `${m[1]}/${m[2]}`;
+}
+
+/** The CRC-style status bar: a Station Select launcher where the position
+ * identity lives, frequency, ATIS, the view-settings menu, active runway,
+ * wind and clock up top, a thin menu strip underneath for the floating
+ * windows (Dep/Arr, World Map). */
 export function TopBar({
   airport,
   role,
@@ -39,17 +54,32 @@ export function TopBar({
   clock,
   selected,
   depArrOpen,
-  onBack,
   onToggleDepArr,
   worldMapEnabled,
   worldMapOpen,
   onToggleWorldMap,
+  installedAirports,
+  onSwitchStation,
+  onDisconnect,
 }: Props) {
   const [metar, setMetar] = useState<string | null>(null);
   const [displayOpen, setDisplayOpen] = useState(false);
   const [showLabels, setShowLabelsState] = useState(getShowLabels());
   const [datablockMode, setDatablockModeState] = useState<DatablockMode>(getDatablockMode());
+  const [runwayOpen, setRunwayOpen] = useState(false);
+  const [activeRunway, setActiveRunway] = useState(() => {
+    const r = airport.runways[0];
+    return r ? { ref: r.ref, end: r.ends[0] } : null;
+  });
+  const [stationSelectOpen, setStationSelectOpen] = useState(false);
+  const [atisOpen, setAtisOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const runwayMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const r = airport.runways[0];
+    setActiveRunway(r ? { ref: r.ref, end: r.ends[0] } : null);
+  }, [airport.icao]);
 
   useEffect(() => {
     let cancelled = false;
@@ -67,42 +97,40 @@ export function TopBar({
   }, [airport.icao]);
 
   useEffect(() => {
-    if (!displayOpen) return;
+    if (!displayOpen && !runwayOpen) return;
     const onClickOutside = (e: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) setDisplayOpen(false);
+      if (runwayMenuRef.current && !runwayMenuRef.current.contains(e.target as Node)) {
+        setRunwayOpen(false);
+      }
     };
     window.addEventListener("mousedown", onClickOutside);
     return () => window.removeEventListener("mousedown", onClickOutside);
-  }, [displayOpen]);
+  }, [displayOpen, runwayOpen]);
+
+  const wind = metar ? parseWind(metar) : null;
 
   return (
     <>
       <div className="top-bar">
         <div className="top-bar-row">
-          <button className="back-button" onClick={onBack} title="Back to menu">
-            ‹
+          <button
+            className="station-button"
+            onClick={() => setStationSelectOpen(true)}
+            title="Station Select"
+          >
+            📡
           </button>
           <span className="tb-position">
             {airport.icao}_{role.toUpperCase()} [{viewMode === "smr" ? "SMR" : "TWR"}]
           </span>
           <span className="tb-freq">{frequencyFor(airport.icao, role)}</span>
-          <span className="tb-status">
-            <span className="tb-status-dot" /> LIVE
-          </span>
-          {selected && (
-            <span className="tb-selected">
-              {selected.callsign} · {selected.aircraft_type}
-            </span>
-          )}
-          <span className="tb-spacer" />
-          {metar && <span className="metar-line" title={metar}>{metar}</span>}
-          <span className="clock">{clock}</span>
-        </div>
-        <div className="top-bar-row top-bar-sub">
-          <span className="tb-icao">{airport.icao}</span>
+          <button className="tb-menu-trigger" onClick={() => setAtisOpen(true)}>
+            ATIS {getAtisLetter(airport.icao)}
+          </button>
           <div className="tb-menu" ref={menuRef}>
             <button className="tb-menu-trigger" onClick={() => setDisplayOpen((v) => !v)}>
-              Display ▾
+              Quick SET ▾
             </button>
             {displayOpen && (
               <div className="tb-menu-panel">
@@ -134,6 +162,46 @@ export function TopBar({
               </div>
             )}
           </div>
+          <div className="tb-menu" ref={runwayMenuRef}>
+            <button className="tb-menu-trigger" onClick={() => setRunwayOpen((v) => !v)}>
+              🛫 {activeRunway ? `${activeRunway.ref} (${activeRunway.end})` : "no rwy"}
+            </button>
+            {runwayOpen && (
+              <div className="tb-menu-panel">
+                {airport.runways.map((r) =>
+                  r.ends.map((end) => (
+                    <button
+                      key={`${r.ref}-${end}`}
+                      className="tb-menu-item runway-option"
+                      onClick={() => {
+                        invoke("set_active_runway", { rwyRef: r.ref, departureEnd: end })
+                          .then(() => setActiveRunway({ ref: r.ref, end }))
+                          .catch(() => {});
+                        setRunwayOpen(false);
+                      }}
+                    >
+                      Runway {r.ref} - using end {end}
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+          {selected && (
+            <span className="tb-selected">
+              {selected.callsign} · {selected.aircraft_type}
+            </span>
+          )}
+          <span className="tb-spacer" />
+          {wind && (
+            <span className="tb-wind" title={metar ?? undefined}>
+              W: {wind}
+            </span>
+          )}
+          <span className="clock">{clock}</span>
+        </div>
+        <div className="top-bar-row top-bar-sub">
+          <span className="tb-icao">{airport.icao}</span>
           <button
             className={depArrOpen ? "tb-menu-trigger active" : "tb-menu-trigger"}
             onClick={onToggleDepArr}
@@ -150,6 +218,17 @@ export function TopBar({
           )}
         </div>
       </div>
+      {stationSelectOpen && (
+        <StationSelectModal
+          installedAirports={installedAirports}
+          currentIcao={airport.icao}
+          currentRole={role}
+          onConnect={onSwitchStation}
+          onDisconnect={onDisconnect}
+          onClose={() => setStationSelectOpen(false)}
+        />
+      )}
+      {atisOpen && <AtisModal icao={airport.icao} onClose={() => setAtisOpen(false)} />}
     </>
   );
 }
