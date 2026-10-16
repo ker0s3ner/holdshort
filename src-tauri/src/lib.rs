@@ -257,15 +257,15 @@ fn find_executable(name: &str) -> Option<String> {
         .filter(|s| !s.is_empty())
 }
 
-/// "base.en" was the original default but its accuracy on short, noisy
-/// ATC-style phrases was poor enough to hear things like "percentages"
-/// for "pushback approved" - "small.en" is a meaningfully more accurate
-/// model (still CPU-speed on a short clip) for a larger one-time download
-/// (~466MB vs ~140MB), which is a trade worth making for speech that's
-/// actually supposed to drive the sim.
-fn default_whisper_model_path() -> String {
+const DEFAULT_WHISPER_MODEL: &str = "small.en";
+
+/// Maps a ladder entry (tiny.en/base.en/small.en/medium.en/large-v3) to
+/// its cached file path - every whisper.cpp ggml model follows this exact
+/// naming convention on Hugging Face, so this is also how the download
+/// URL is built.
+fn whisper_model_path(model: &str) -> String {
     format!(
-        "{}/.cache/whisper/ggml-small.en.bin",
+        "{}/.cache/whisper/ggml-{model}.bin",
         std::env::var("HOME").unwrap_or_default()
     )
 }
@@ -294,13 +294,14 @@ async fn ollama_has_model(model: &str) -> bool {
 
 /// Lets the first-run setup screen show real state instead of guessing -
 /// whether Homebrew, whisper.cpp and Ollama are actually installed, and
-/// whether the speech model / AI model have already been downloaded.
+/// whether the specific speech/AI models the user picked have actually
+/// been downloaded.
 #[tauri::command]
-async fn check_setup_status(ollama_model: String) -> SetupStatus {
+async fn check_setup_status(ollama_model: String, whisper_model: String) -> SetupStatus {
     SetupStatus {
         brew_installed: find_executable("brew").is_some(),
         whisper_installed: find_executable("whisper-cli").is_some(),
-        whisper_model_present: std::path::Path::new(&default_whisper_model_path()).exists(),
+        whisper_model_present: std::path::Path::new(&whisper_model_path(&whisper_model)).exists(),
         ollama_installed: find_executable("ollama").is_some(),
         ollama_model_present: ollama_has_model(&ollama_model).await,
     }
@@ -345,53 +346,129 @@ async fn install_ollama() -> Result<String, String> {
     .map_err(|e| format!("install task panicked: {e}"))?
 }
 
-/// Runs `ollama pull <model>` - a real download (several GB for most
-/// models), so this runs on a blocking thread like the other installers.
-#[tauri::command]
-async fn pull_ollama_model(model: String) -> Result<String, String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        let ollama = find_executable("ollama").ok_or_else(|| {
-            "Ollama isn't installed yet - install it first.".to_string()
-        })?;
-        let output = std::process::Command::new(ollama)
-            .args(["pull", &model])
-            .output()
-            .map_err(|e| format!("couldn't run ollama: {e}"))?;
-        if !output.status.success() {
-            return Err(format!(
-                "ollama pull failed: {}",
-                String::from_utf8_lossy(&output.stderr)
-            ));
-        }
-        Ok(String::from_utf8_lossy(&output.stdout).to_string())
-    })
-    .await
-    .map_err(|e| format!("pull task panicked: {e}"))?
+#[derive(Serialize, Clone)]
+struct PullProgress {
+    status: String,
+    percent: Option<f64>,
 }
 
-/// Downloads the small English whisper.cpp model into ~/.cache/whisper -
-/// about 466MB, a one-time cost so speech-to-text works offline afterward
-/// and is actually accurate enough to drive the sim.
+/// Pulls an Ollama model via its local streaming HTTP API rather than
+/// shelling out to `ollama pull` and parsing its carriage-return-animated
+/// terminal progress bar - the API streams newline-delimited JSON with
+/// exact byte counts, which is both simpler and more reliable to turn
+/// into a real percentage for the UI.
 #[tauri::command]
-async fn download_whisper_model() -> Result<(), String> {
-    let model_path = default_whisper_model_path();
+async fn pull_ollama_model(app: tauri::AppHandle, model: String) -> Result<(), String> {
+    let client = reqwest::Client::new();
+    let mut resp = client
+        .post("http://localhost:11434/api/pull")
+        .json(&serde_json::json!({ "model": model, "stream": true }))
+        .send()
+        .await
+        .map_err(|_| {
+            "Couldn't reach Ollama at localhost:11434 - make sure it's installed and running."
+                .to_string()
+        })?;
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let text = resp.text().await.unwrap_or_default();
+        return Err(format!("Ollama pull failed ({status}): {text}"));
+    }
+
+    let mut buf = String::new();
+    let mut last_error: Option<String> = None;
+    while let Some(chunk) = resp
+        .chunk()
+        .await
+        .map_err(|e| format!("pull stream error: {e}"))?
+    {
+        buf.push_str(&String::from_utf8_lossy(&chunk));
+        while let Some(idx) = buf.find('\n') {
+            let line = buf[..idx].trim().to_string();
+            buf.drain(..=idx);
+            if line.is_empty() {
+                continue;
+            }
+            let Ok(v) = serde_json::from_str::<serde_json::Value>(&line) else {
+                continue;
+            };
+            if let Some(err) = v.get("error").and_then(|e| e.as_str()) {
+                last_error = Some(err.to_string());
+                continue;
+            }
+            let status = v
+                .get("status")
+                .and_then(|s| s.as_str())
+                .unwrap_or("")
+                .to_string();
+            let percent = match (
+                v.get("completed").and_then(|c| c.as_f64()),
+                v.get("total").and_then(|t| t.as_f64()),
+            ) {
+                (Some(completed), Some(total)) if total > 0.0 => Some(completed / total * 100.0),
+                _ => None,
+            };
+            let _ = app.emit("ollama-pull-progress", PullProgress { status, percent });
+        }
+    }
+    if let Some(err) = last_error {
+        return Err(format!("Ollama pull failed: {err}"));
+    }
+    Ok(())
+}
+
+#[derive(Serialize, Clone)]
+struct DownloadProgress {
+    percent: f64,
+}
+
+/// Downloads a whisper.cpp ggml model into ~/.cache/whisper, streaming it
+/// in chunks (rather than one `.bytes()` call that only resolves once the
+/// whole multi-hundred-MB file is in memory) so real download progress -
+/// not just a static "Downloading…" - can be emitted to the UI.
+#[tauri::command]
+async fn download_whisper_model(app: tauri::AppHandle, model: String) -> Result<(), String> {
+    let model_path = whisper_model_path(&model);
     let dir = std::path::Path::new(&model_path)
         .parent()
         .ok_or("invalid model path")?;
     std::fs::create_dir_all(dir).map_err(|e| format!("couldn't create {dir:?}: {e}"))?;
 
-    let url = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.en.bin";
-    let resp = reqwest::get(url)
+    let url = format!(
+        "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-{model}.bin"
+    );
+    let mut resp = reqwest::get(&url)
         .await
         .map_err(|e| format!("download failed: {e}"))?;
     if !resp.status().is_success() {
         return Err(format!("download failed: HTTP {}", resp.status()));
     }
-    let bytes = resp
-        .bytes()
+    let total = resp.content_length().unwrap_or(0);
+
+    let tmp_path = format!("{model_path}.part");
+    let mut file = std::fs::File::create(&tmp_path).map_err(|e| format!("couldn't create {tmp_path}: {e}"))?;
+    let mut downloaded: u64 = 0;
+    let mut last_emitted = -1i64;
+    use std::io::Write;
+    while let Some(chunk) = resp
+        .chunk()
         .await
-        .map_err(|e| format!("couldn't read model bytes: {e}"))?;
-    std::fs::write(&model_path, &bytes).map_err(|e| format!("couldn't write model: {e}"))?;
+        .map_err(|e| format!("download stream error: {e}"))?
+    {
+        file.write_all(&chunk).map_err(|e| format!("couldn't write model: {e}"))?;
+        downloaded += chunk.len() as u64;
+        if total > 0 {
+            let percent = (downloaded as f64 / total as f64 * 100.0).min(100.0);
+            let rounded = percent as i64;
+            if rounded != last_emitted {
+                last_emitted = rounded;
+                let _ = app.emit("whisper-download-progress", DownloadProgress { percent });
+            }
+        }
+    }
+    drop(file);
+    std::fs::rename(&tmp_path, &model_path).map_err(|e| format!("couldn't finalize model file: {e}"))?;
+    let _ = app.emit("whisper-download-progress", DownloadProgress { percent: 100.0 });
     Ok(())
 }
 
@@ -459,23 +536,28 @@ fn refresh_launch_services() {
 /// out to whatever the user has installed and says exactly what to install
 /// if it isn't there yet.
 #[tauri::command]
-async fn transcribe_audio(wav_base64: String, model_path: Option<String>) -> Result<String, String> {
+async fn transcribe_audio(
+    wav_base64: String,
+    model_path: Option<String>,
+    whisper_model: Option<String>,
+) -> Result<String, String> {
     use base64::Engine;
     let bytes = base64::engine::general_purpose::STANDARD
         .decode(wav_base64)
         .map_err(|e| format!("couldn't decode recorded audio: {e}"))?;
 
-    // This used to hardcode its own copy of the default path, separate
-    // from default_whisper_model_path() - meant the setup wizard's "is the
-    // model there" check and this command's actual fallback path could
-    // silently disagree if one got edited and not the other.
-    let model = model_path.unwrap_or_else(default_whisper_model_path);
+    // `model_path` is the power-user override (an exact file path);
+    // otherwise resolve from the ladder entry the user picked in Settings,
+    // falling back to the recommended default if neither was set.
+    let model = model_path.unwrap_or_else(|| {
+        whisper_model_path(whisper_model.as_deref().unwrap_or(DEFAULT_WHISPER_MODEL))
+    });
     if !std::path::Path::new(&model).exists() {
         return Err(format!(
             "No whisper model found at {model}. Install whisper.cpp with `brew install \
-             whisper-cpp`, then download a model, e.g. `curl -L -o {model} \
+             whisper-cpp`, then download a model from Settings → Voice, or `curl -L -o {model} \
              https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.en.bin` \
-             (create the ~/.cache/whisper folder first), or set a custom model path in Settings."
+             (create the ~/.cache/whisper folder first)."
         ));
     }
 

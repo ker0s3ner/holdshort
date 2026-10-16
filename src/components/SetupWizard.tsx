@@ -1,7 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import type { AirportSummary } from "../types";
-import { getOllamaModel, setSttEnabled } from "../voiceSettings";
+import {
+  getOllamaModel,
+  getWhisperModel,
+  OLLAMA_MODELS,
+  setOllamaModel,
+  setSttEnabled,
+  setWhisperModel,
+  WHISPER_MODELS,
+} from "../voiceSettings";
 
 interface Props {
   onDone: () => void;
@@ -80,17 +89,23 @@ function VoiceStep({ onNext, onSkip }: { onNext: () => void; onSkip: () => void 
   const [status, setStatus] = useState<SetupStatus | null>(null);
   const [busy, setBusy] = useState<Busy>("idle");
   const [error, setError] = useState<string | null>(null);
-  const ollamaModel = getOllamaModel();
+  const [whisperModel, setWhisperModelState] = useState(getWhisperModel());
+  const [ollamaModel, setOllamaModelState] = useState(getOllamaModel());
+  const [ollamaCustom, setOllamaCustom] = useState(
+    !OLLAMA_MODELS.some((m) => m.id === getOllamaModel())
+  );
+  const [whisperPercent, setWhisperPercent] = useState<number | null>(null);
+  const [ollamaStatus, setOllamaStatus] = useState<string | null>(null);
 
   const refresh = () =>
-    invoke<SetupStatus>("check_setup_status", { ollamaModel })
+    invoke<SetupStatus>("check_setup_status", { ollamaModel, whisperModel })
       .then(setStatus)
       .catch((e) => setError(String(e)));
 
   useEffect(() => {
     refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [ollamaModel, whisperModel]);
 
   useEffect(() => {
     if (status?.whisper_installed && status?.whisper_model_present) {
@@ -98,9 +113,25 @@ function VoiceStep({ onNext, onSkip }: { onNext: () => void; onSkip: () => void 
     }
   }, [status]);
 
+  useEffect(() => {
+    const un1 = listen<{ percent: number }>("whisper-download-progress", (e) => {
+      setWhisperPercent(e.payload.percent);
+    });
+    const un2 = listen<{ status: string; percent: number | null }>("ollama-pull-progress", (e) => {
+      const p = e.payload.percent;
+      setOllamaStatus(p != null ? `${e.payload.status} ${p.toFixed(0)}%` : e.payload.status);
+    });
+    return () => {
+      un1.then((f) => f());
+      un2.then((f) => f());
+    };
+  }, []);
+
   const run = async (busyState: Busy, command: string, args?: Record<string, unknown>) => {
     setBusy(busyState);
     setError(null);
+    setWhisperPercent(null);
+    setOllamaStatus(null);
     try {
       await invoke(command, args);
       await refresh();
@@ -145,14 +176,36 @@ function VoiceStep({ onNext, onSkip }: { onNext: () => void; onSkip: () => void 
             </button>
           )}
         </div>
+        <label className="field-label">
+          Speech model
+          <select
+            value={whisperModel}
+            disabled={busy !== "idle"}
+            onChange={(e) => {
+              setWhisperModelState(e.target.value);
+              setWhisperModel(e.target.value);
+            }}
+          >
+            {WHISPER_MODELS.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.label}
+              </option>
+            ))}
+          </select>
+        </label>
         <div className="setup-check-row">
-          <span>{status?.whisper_model_present ? "✓" : "–"} Speech model (~466MB)</span>
+          <span>
+            {status?.whisper_model_present ? "✓" : "–"}{" "}
+            {busy === "downloading-model" && whisperPercent != null
+              ? `Downloading… ${whisperPercent.toFixed(0)}%`
+              : "Downloaded"}
+          </span>
           {!status?.whisper_model_present && (
             <button
               disabled={busy !== "idle"}
-              onClick={() => run("downloading-model", "download_whisper_model")}
+              onClick={() => run("downloading-model", "download_whisper_model", { model: whisperModel })}
             >
-              {busy === "downloading-model" ? "Downloading…" : "Download"}
+              {busy === "downloading-model" ? `${(whisperPercent ?? 0).toFixed(0)}%` : "Download"}
             </button>
           )}
         </div>
@@ -167,9 +220,47 @@ function VoiceStep({ onNext, onSkip }: { onNext: () => void; onSkip: () => void 
             </button>
           )}
         </div>
+        <label className="field-label">
+          AI model
+          <select
+            value={ollamaCustom ? "custom" : ollamaModel}
+            disabled={busy !== "idle"}
+            onChange={(e) => {
+              if (e.target.value === "custom") {
+                setOllamaCustom(true);
+                return;
+              }
+              setOllamaCustom(false);
+              setOllamaModelState(e.target.value);
+              setOllamaModel(e.target.value);
+            }}
+          >
+            {OLLAMA_MODELS.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.label}
+              </option>
+            ))}
+            <option value="custom">Custom…</option>
+          </select>
+        </label>
+        {ollamaCustom && (
+          <input
+            type="text"
+            value={ollamaModel}
+            placeholder="e.g. gemma3:12b"
+            onChange={(e) => {
+              setOllamaModelState(e.target.value);
+              setOllamaModel(e.target.value);
+            }}
+          />
+        )}
         <div className="setup-check-row">
           <span>
-            {status?.ollama_model_present ? "✓" : "–"} Model "{ollamaModel}" (several GB)
+            {status?.ollama_model_present
+              ? "✓ Model downloaded"
+              : busy === "pulling-model" && ollamaStatus
+                ? ollamaStatus
+                : "– Not downloaded"}
           </span>
           {status?.ollama_installed && !status?.ollama_model_present && (
             <button

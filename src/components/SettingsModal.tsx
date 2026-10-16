@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { getVersion } from "@tauri-apps/api/app";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { Modal } from "./Modal";
 import { isRealisticVoice } from "../speech";
 import {
@@ -9,9 +10,11 @@ import {
   getPttKey,
   getTtsRate,
   getTtsVoiceName,
+  getWhisperModel,
   getWhisperModelPath,
   isReadbackEnabled,
   isSttEnabled,
+  OLLAMA_MODELS,
   setMicDeviceId,
   setOllamaModel,
   setPttKey,
@@ -19,7 +22,9 @@ import {
   setSttEnabled,
   setTtsRate,
   setTtsVoiceName,
+  setWhisperModel,
   setWhisperModelPath,
+  WHISPER_MODELS,
 } from "../voiceSettings";
 import { getTheme, setTheme, type Theme } from "../themeSettings";
 import { AVAILABLE_PLUGINS, isPluginEnabled, setPluginEnabled } from "../pluginSettings";
@@ -86,16 +91,36 @@ function GeneralTab({ onRerunSetup }: { onRerunSetup: () => void }) {
 function VoiceTab() {
   const [readback, setReadback] = useState(isReadbackEnabled());
   const [model, setModel] = useState(getOllamaModel());
+  const [ollamaCustom, setOllamaCustom] = useState(!OLLAMA_MODELS.some((m) => m.id === getOllamaModel()));
   const [ttsVoice, setTtsVoice] = useState(getTtsVoiceName());
   const [ttsRate, setTtsRateState] = useState(getTtsRate());
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [sttEnabled, setSttEnabledState] = useState(isSttEnabled());
-  const [whisperModel, setWhisperModelState] = useState(getWhisperModelPath());
+  const [whisperModelPath, setWhisperModelPathState] = useState(getWhisperModelPath());
+  const [whisperModel, setWhisperModelState] = useState(getWhisperModel());
   const [micDeviceId, setMicDeviceIdState] = useState(getMicDeviceId());
   const [micDevices, setMicDevices] = useState<MediaDeviceInfo[]>([]);
   const [pttKey, setPttKeyState] = useState(getPttKey());
   const [recordingKey, setRecordingKey] = useState(false);
   const [micResetState, setMicResetState] = useState<"idle" | "resetting" | "done">("idle");
+  const [whisperPresent, setWhisperPresent] = useState<boolean | null>(null);
+  const [ollamaPresent, setOllamaPresent] = useState<boolean | null>(null);
+  const [whisperBusy, setWhisperBusy] = useState(false);
+  const [ollamaBusy, setOllamaBusy] = useState(false);
+  const [whisperPercent, setWhisperPercent] = useState<number | null>(null);
+  const [ollamaStatus, setOllamaStatus] = useState<string | null>(null);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
+
+  const refreshStatus = () =>
+    invoke<{ whisper_model_present: boolean; ollama_model_present: boolean }>(
+      "check_setup_status",
+      { ollamaModel: model, whisperModel }
+    )
+      .then((s) => {
+        setWhisperPresent(s.whisper_model_present);
+        setOllamaPresent(s.ollama_model_present);
+      })
+      .catch(() => {});
 
   useEffect(() => {
     if (!("speechSynthesis" in window)) return;
@@ -110,6 +135,53 @@ function VoiceTab() {
       .then((devices) => setMicDevices(devices.filter((d) => d.kind === "audioinput")))
       .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    refreshStatus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [model, whisperModel]);
+
+  useEffect(() => {
+    const un1 = listen<{ percent: number }>("whisper-download-progress", (e) => {
+      setWhisperPercent(e.payload.percent);
+    });
+    const un2 = listen<{ status: string; percent: number | null }>("ollama-pull-progress", (e) => {
+      const p = e.payload.percent;
+      setOllamaStatus(p != null ? `${e.payload.status} ${p.toFixed(0)}%` : e.payload.status);
+    });
+    return () => {
+      un1.then((f) => f());
+      un2.then((f) => f());
+    };
+  }, []);
+
+  const downloadWhisperModel = async () => {
+    setWhisperBusy(true);
+    setWhisperPercent(0);
+    setDownloadError(null);
+    try {
+      await invoke("download_whisper_model", { model: whisperModel });
+      await refreshStatus();
+    } catch (e) {
+      setDownloadError(String(e));
+    } finally {
+      setWhisperBusy(false);
+    }
+  };
+
+  const pullOllamaModel = async () => {
+    setOllamaBusy(true);
+    setOllamaStatus(null);
+    setDownloadError(null);
+    try {
+      await invoke("pull_ollama_model", { model });
+      await refreshStatus();
+    } catch (e) {
+      setDownloadError(String(e));
+    } finally {
+      setOllamaBusy(false);
+    }
+  };
 
   const startKeyCapture = () => {
     setRecordingKey(true);
@@ -140,15 +212,52 @@ function VoiceTab() {
       </div>
       <label className="field-label">
         Ollama model (for readback phrasing)
+        <select
+          value={ollamaCustom ? "custom" : model}
+          disabled={ollamaBusy}
+          onChange={(e) => {
+            if (e.target.value === "custom") {
+              setOllamaCustom(true);
+              return;
+            }
+            setOllamaCustom(false);
+            setModel(e.target.value);
+            setOllamaModel(e.target.value);
+          }}
+        >
+          {OLLAMA_MODELS.map((m) => (
+            <option key={m.id} value={m.id}>
+              {m.label}
+            </option>
+          ))}
+          <option value="custom">Custom…</option>
+        </select>
+      </label>
+      {ollamaCustom && (
         <input
           type="text"
           value={model}
+          placeholder="e.g. gemma3:12b"
           onChange={(e) => {
             setModel(e.target.value);
             setOllamaModel(e.target.value);
           }}
         />
-      </label>
+      )}
+      <div className="settings-row">
+        <span>
+          {ollamaPresent
+            ? "✓ Model downloaded"
+            : ollamaBusy && ollamaStatus
+              ? ollamaStatus
+              : "– Not downloaded"}
+        </span>
+        {!ollamaPresent && (
+          <button disabled={ollamaBusy} onClick={pullOllamaModel}>
+            {ollamaBusy ? "Pulling…" : "Pull"}
+          </button>
+        )}
+      </div>
       <label className="field-label">
         Voice
         <select
@@ -160,7 +269,7 @@ function VoiceTab() {
         >
           <option value="">System default</option>
           {voices.map((v) => (
-            <option key={v.name} value={v.name}>
+            <option key={`${v.name}-${v.lang}`} value={v.name}>
               {v.name} ({v.lang})
             </option>
           ))}
@@ -260,13 +369,45 @@ function VoiceTab() {
         </button>
       </div>
       <label className="field-label">
-        Whisper model path (optional override)
+        Speech model
+        <select
+          value={whisperModel}
+          disabled={whisperBusy}
+          onChange={(e) => {
+            setWhisperModelState(e.target.value);
+            setWhisperModel(e.target.value);
+          }}
+        >
+          {WHISPER_MODELS.map((m) => (
+            <option key={m.id} value={m.id}>
+              {m.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <div className="settings-row">
+        <span>
+          {whisperPresent
+            ? "✓ Downloaded"
+            : whisperBusy && whisperPercent != null
+              ? `Downloading… ${whisperPercent.toFixed(0)}%`
+              : "– Not downloaded"}
+        </span>
+        {!whisperPresent && (
+          <button disabled={whisperBusy} onClick={downloadWhisperModel}>
+            {whisperBusy ? `${(whisperPercent ?? 0).toFixed(0)}%` : "Download"}
+          </button>
+        )}
+      </div>
+      {downloadError && <p className="muted settings-note">⚠ {downloadError}</p>}
+      <label className="field-label">
+        Whisper model path (optional override - skips the picker above entirely)
         <input
           type="text"
           placeholder="~/.cache/whisper/ggml-small.en.bin"
-          value={whisperModel}
+          value={whisperModelPath}
           onChange={(e) => {
-            setWhisperModelState(e.target.value);
+            setWhisperModelPathState(e.target.value);
             setWhisperModelPath(e.target.value);
           }}
         />
@@ -277,7 +418,8 @@ function VoiceTab() {
         <a href="https://github.com/ggml-org/whisper.cpp" target="_blank" rel="noreferrer">
           whisper.cpp
         </a>
-        . Install it with <code>brew install whisper-cpp</code>, then download a model, e.g.{" "}
+        . Install it with <code>brew install whisper-cpp</code>, then pick a model size above and
+        download it, or manually, e.g.{" "}
         <code>
           mkdir -p ~/.cache/whisper &amp;&amp; curl -L -o ~/.cache/whisper/ggml-small.en.bin
           https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.en.bin

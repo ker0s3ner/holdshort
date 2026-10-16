@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { getMicDeviceId, getWhisperModelPath } from "./voiceSettings";
+import { getMicDeviceId, getWhisperModel, getWhisperModelPath } from "./voiceSettings";
 
 /** Records 16-bit PCM mono WAV from the mic using plain Web Audio (not
  * MediaRecorder, whose default codec varies by platform) so the bytes sent
@@ -132,5 +132,6 @@ export async function stopListeningAndTranscribe(): Promise<string> {
   return invoke<string>("transcribe_audio", {
     wavBase64: bytesToBase64(wav),
     modelPath: modelPath || null,
+    whisperModel: getWhisperModel(),
   });
 }
