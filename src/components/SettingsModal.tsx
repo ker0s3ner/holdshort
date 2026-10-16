@@ -109,7 +109,8 @@ function VoiceTab() {
   const [ollamaBusy, setOllamaBusy] = useState(false);
   const [whisperPercent, setWhisperPercent] = useState<number | null>(null);
   const [ollamaStatus, setOllamaStatus] = useState<string | null>(null);
-  const [downloadError, setDownloadError] = useState<string | null>(null);
+  const [whisperError, setWhisperError] = useState<string | null>(null);
+  const [ollamaError, setOllamaError] = useState<string | null>(null);
 
   const refreshStatus = () =>
     invoke<{ whisper_model_present: boolean; ollama_model_present: boolean }>(
@@ -158,12 +159,12 @@ function VoiceTab() {
   const downloadWhisperModel = async () => {
     setWhisperBusy(true);
     setWhisperPercent(0);
-    setDownloadError(null);
+    setWhisperError(null);
     try {
       await invoke("download_whisper_model", { model: whisperModel });
       await refreshStatus();
     } catch (e) {
-      setDownloadError(String(e));
+      setWhisperError(String(e));
     } finally {
       setWhisperBusy(false);
     }
@@ -172,12 +173,12 @@ function VoiceTab() {
   const pullOllamaModel = async () => {
     setOllamaBusy(true);
     setOllamaStatus(null);
-    setDownloadError(null);
+    setOllamaError(null);
     try {
       await invoke("pull_ollama_model", { model });
       await refreshStatus();
     } catch (e) {
-      setDownloadError(String(e));
+      setOllamaError(String(e));
     } finally {
       setOllamaBusy(false);
     }
@@ -258,6 +259,7 @@ function VoiceTab() {
           </button>
         )}
       </div>
+      {ollamaError && <p className="muted settings-note">⚠ {ollamaError}</p>}
       <label className="field-label">
         Voice
         <select
@@ -399,7 +401,7 @@ function VoiceTab() {
           </button>
         )}
       </div>
-      {downloadError && <p className="muted settings-note">⚠ {downloadError}</p>}
+      {whisperError && <p className="muted settings-note">⚠ {whisperError}</p>}
       <label className="field-label">
         Whisper model path (optional override - skips the picker above entirely)
         <input
