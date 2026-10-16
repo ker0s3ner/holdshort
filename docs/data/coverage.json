@@ -391,17 +391,17 @@
     {
       "name": "Russia",
       "iso": 643,
-      "reason": "Not modeled at this time \u2014 we are not maintaining airspace/airport data for this region."
+      "reason": "Excluded in protest of the full-scale invasion of Ukraine and the hybrid war Russia is waging against Lithuania and its neighbors."
     },
     {
       "name": "North Korea",
       "iso": 408,
-      "reason": "Not modeled at this time \u2014 reliable open aviation data for this region does not exist."
+      "reason": "Excluded over the North Korean government's human rights record."
     },
     {
       "name": "Israel",
       "iso": 376,
-      "reason": "Not modeled at this time \u2014 we are not maintaining airspace/airport data for this active conflict region."
+      "reason": "Excluded in protest of the genocide in Gaza."
     }
   ]
 }
