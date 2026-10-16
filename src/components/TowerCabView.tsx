@@ -16,6 +16,15 @@ interface Props {
 }
 
 const VIS_RING_METERS = 18_000; // ~10 statute miles, the default CRC clear-weather ring
+// Real pavement width per edge kind (meters-ish, scaled with zoom) - the
+// same technique SurfaceDisplay uses so Tower Cab reads as an actual
+// shaded airport diagram over the imagery, not a thin accent line.
+const EDGE_WIDTH: Record<string, number> = {
+  runway: 15,
+  stopway: 9,
+  taxiway: 8,
+  taxilane: 6,
+};
 // How far past the airport's own geometry the satellite basemap extends,
 // so Tower Cab opens on a wide view of the surrounding area (matching real
 // CRC) instead of a tight crop around just the runways.
@@ -267,13 +276,14 @@ export function TowerCabView({ airport, aircraft, selectedCallsign, onSelectAirc
       ctx.fillStyle = grad;
       ctx.fillRect(0, 0, w, h);
 
-      // Apron/terminal/hangar footprints, outlined only (not filled) so the
-      // satellite imagery underneath still reads through.
-      ctx.strokeStyle = palette.diagram;
-      ctx.globalAlpha = 0.5;
-      ctx.lineWidth = 1;
+      // Apron/terminal/hangar footprints, filled - a real diagram shades
+      // the areas that matter instead of just outlining them, so it reads
+      // clearly even where the satellite imagery is busy or low-contrast.
+      ctx.globalAlpha = 0.65;
       for (const area of airport.areas) {
         if (area.points.length < 3) continue;
+        ctx.fillStyle =
+          palette.areaFill[area.kind as keyof typeof palette.areaFill] ?? palette.areaFill.default;
         ctx.beginPath();
         area.points.forEach(([x, y], i) => {
           const { sx, sy } = toScreen(x, y);
@@ -281,10 +291,13 @@ export function TowerCabView({ airport, aircraft, selectedCallsign, onSelectAirc
           else ctx.lineTo(sx, sy);
         });
         ctx.closePath();
-        ctx.stroke();
+        ctx.fill();
       }
       ctx.globalAlpha = 1;
 
+      // Taxiway/runway pavement, drawn at real physical width (scaled with
+      // zoom) rather than a fixed thin line, so the whole movement area
+      // reads as solid shaded ground truth, not a wireframe over a photo.
       for (const e of airport.edges) {
         if (e.kind === "gate_link") continue;
         const a = nodeById.get(e.from);
@@ -292,15 +305,36 @@ export function TowerCabView({ airport, aircraft, selectedCallsign, onSelectAirc
         if (!a || !b) continue;
         const { sx: ax, sy: ay } = toScreen(a.x, a.y);
         const { sx: bx, sy: by } = toScreen(b.x, b.y);
-        ctx.strokeStyle = e.kind === "runway" ? palette.runwayStroke : palette.diagram;
-        ctx.globalAlpha = e.kind === "runway" ? 0.95 : 0.75;
-        ctx.lineWidth = e.kind === "runway" ? 3 : 1.6;
+        const baseWidth = EDGE_WIDTH[e.kind] ?? 4;
+        ctx.strokeStyle = e.kind === "runway" ? palette.runwayStroke : palette.towerShade;
+        ctx.globalAlpha = e.kind === "runway" ? 0.95 : 0.8;
+        ctx.lineWidth = Math.max(baseWidth * (scale / 2.2), 1.5);
+        ctx.lineCap = "round";
         ctx.beginPath();
         ctx.moveTo(ax, ay);
         ctx.lineTo(bx, by);
         ctx.stroke();
       }
       ctx.globalAlpha = 1;
+
+      // Runway centerline dashes on top, for the same authentic read
+      // SurfaceDisplay gives the SMR view.
+      for (const e of airport.edges) {
+        if (e.kind !== "runway") continue;
+        const a = nodeById.get(e.from);
+        const b = nodeById.get(e.to);
+        if (!a || !b) continue;
+        const { sx: ax, sy: ay } = toScreen(a.x, a.y);
+        const { sx: bx, sy: by } = toScreen(b.x, b.y);
+        ctx.strokeStyle = palette.runwayCenterline;
+        ctx.lineWidth = Math.max(1.5 * (scale / 2.2), 0.8);
+        ctx.setLineDash([Math.max(6 * (scale / 2.2), 3), Math.max(6 * (scale / 2.2), 3)]);
+        ctx.beginPath();
+        ctx.moveTo(ax, ay);
+        ctx.lineTo(bx, by);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
 
       const showRunwayLabels = getShowRunwayLabels();
       const showTaxiwayLabels = getShowTaxiwayLabels();

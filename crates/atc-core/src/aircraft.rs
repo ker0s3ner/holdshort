@@ -86,6 +86,11 @@ pub struct Aircraft {
     /// taxi clearance, rather than treating the whole gate-to-runway route
     /// as "still pushing back".
     pub pushback_end_index: usize,
+    /// Route index of the node where an arrival actually clears the
+    /// runway onto the taxiway network - LandingRollout stops here and
+    /// waits for an explicit taxi clearance instead of rolling straight
+    /// through to the gate unprompted. Unused (0) for departures.
+    pub runway_exit_index: usize,
     pub x: f64,
     pub y: f64,
     pub heading_deg: f64,

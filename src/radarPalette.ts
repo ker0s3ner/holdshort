@@ -16,6 +16,10 @@ export interface RadarPalette {
   diagram: string;
   /** Tower Cab's runway stroke color, distinct from taxiways. */
   runwayStroke: string;
+  /** Tower Cab's filled pavement shade - a real synthetic diagram drawn
+   * over the imagery (gray taxiway/apron shapes at realistic width), not
+   * a thin accent-colored outline. */
+  towerShade: string;
   parkingDot: string;
   runwayLabel: string;
   taxiwayLabel: string;
@@ -36,6 +40,7 @@ const PALETTES: Record<Theme, RadarPalette> = {
     runwayCenterline: "#e8e8e8",
     diagram: "#ffb020",
     runwayStroke: "#e8e8e8",
+    towerShade: "#3a4a46",
     parkingDot: "#cfe8d8",
     runwayLabel: "#eafff4",
     taxiwayLabel: "#ffd866",
@@ -54,6 +59,7 @@ const PALETTES: Record<Theme, RadarPalette> = {
     runwayCenterline: "#e8e8e8",
     diagram: "#9fa6ab",
     runwayStroke: "#f2f2f2",
+    towerShade: "#4a4a4a",
     parkingDot: "#cfd8da",
     runwayLabel: "#f2f6f7",
     taxiwayLabel: "#4fc3f7",
@@ -72,6 +78,7 @@ const PALETTES: Record<Theme, RadarPalette> = {
     runwayCenterline: "#eaffea",
     diagram: "#2f8f4a",
     runwayStroke: "#3dff6e",
+    towerShade: "#1c2e1e",
     parkingDot: "#3dff6e",
     runwayLabel: "#eaffea",
     taxiwayLabel: "#ffb000",

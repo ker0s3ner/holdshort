@@ -124,6 +124,7 @@ impl Simulation {
             route,
             route_index: 0,
             pushback_end_index,
+            runway_exit_index: 0,
             x: start.x,
             y: start.y,
             heading_deg: 0.0,
@@ -167,7 +168,7 @@ impl Simulation {
             rw.node_start.clone()
         };
 
-        let route = self
+        let (route, runway_exit_index) = self
             .graph
             .find_arrival_path(&threshold_node, &far_end_node, &gate_node)
             .ok_or_else(|| format!("no taxi route from runway {runway_ref} to gate {gate_ref}"))?;
@@ -189,6 +190,7 @@ impl Simulation {
             route,
             route_index: 0,
             pushback_end_index: 0,
+            runway_exit_index,
             x: start.x,
             y: start.y,
             heading_deg: 0.0,
@@ -290,6 +292,7 @@ impl Simulation {
                 ac.flight_plan.assigned_gate = gate_ref;
                 ac.state = AircraftState::TaxiingToGate;
                 ac.hold_short_node = None;
+                ac.ready_since_s = None;
             }
             Clearance::HoldShort { node_id } => {
                 ac.hold_short_node = Some(node_id);
@@ -418,15 +421,23 @@ impl Simulation {
                     // arrivals are spawned directly into LandingRollout.
                 }
                 AircraftState::LandingRollout => {
+                    // Decelerating toward the exit speed paces the rollout
+                    // realistically, but the transition itself is gated on
+                    // actually reaching the runway-exit node
+                    // (runway_exit_index) - not on speed alone, which would
+                    // otherwise hit the floor and "vacate" almost instantly
+                    // regardless of how much runway is actually left.
                     ac.ground_speed_kt =
                         (ac.ground_speed_kt - LANDING_DECEL_KT_PER_S * dt_s)
                             .max(LANDING_EXIT_SPEED_KT);
-                    let reached_end = advance_along_route(ac, dt_s, &self.graph);
-                    if ac.ground_speed_kt <= LANDING_EXIT_SPEED_KT || reached_end {
-                        ac.state = AircraftState::TaxiingToGate;
+                    advance_along_route(ac, dt_s, &self.graph);
+                    if ac.route_index >= ac.runway_exit_index {
+                        ac.ground_speed_kt = 0.0;
+                        ac.state = AircraftState::ReadyForTaxi;
+                        ac.ready_since_s = Some(self.clock_s);
                         events.push(SimEvent {
                             callsign: ac.callsign.clone(),
-                            message: "runway vacated, request taxi to gate".to_string(),
+                            message: "runway vacated, ready to taxi".to_string(),
                         });
                     }
                 }
@@ -465,10 +476,35 @@ impl Simulation {
                     }
                 }
                 AircraftState::ReadyForTaxi if active_role != ControllerRole::Ground => {
-                    if clock - since >= AUTO_TAXI_DELAY_S {
+                    if clock - since < AUTO_TAXI_DELAY_S {
+                        continue;
+                    }
+                    if ac.flight_plan.rule == FlightRule::Departure {
                         if let Some(ac) = self.aircraft.get_mut(cs) {
                             ac.state = AircraftState::TaxiingToRunway;
                             ac.ready_since_s = None;
+                        }
+                    } else {
+                        // Arrival ready to taxi but ground isn't worked -
+                        // auto-clear it to its already-assigned gate, same
+                        // route a TaxiToGate clearance would compute.
+                        let gate_ref = ac.flight_plan.assigned_gate.clone();
+                        let current = ac
+                            .target_node()
+                            .cloned()
+                            .or_else(|| ac.route.last().cloned());
+                        if let (Some(gate_node), Some(current)) =
+                            (self.gate_node(&gate_ref), current)
+                        {
+                            if let Some(route) = self.graph.find_path(&current, &gate_node) {
+                                if let Some(ac) = self.aircraft.get_mut(cs) {
+                                    ac.route = route;
+                                    ac.route_index = 0;
+                                    ac.state = AircraftState::TaxiingToGate;
+                                    ac.hold_short_node = None;
+                                    ac.ready_since_s = None;
+                                }
+                            }
                         }
                     }
                 }

@@ -147,6 +147,24 @@ fn arrival_taxis_from_runway_to_gate() {
         .expect("arrival spawns with a valid taxi route");
     assert_eq!(sim.aircraft["TEST2"].state, AircraftState::LandingRollout);
 
+    // Once clear of the runway, the arrival stops and waits - ground has
+    // to actually clear it to the gate, it doesn't roll straight through.
+    let mut ticks = 0;
+    while sim.aircraft["TEST2"].state != AircraftState::ReadyForTaxi && ticks < 100_000 {
+        sim.tick(1.0);
+        ticks += 1;
+    }
+    assert_eq!(sim.aircraft["TEST2"].state, AircraftState::ReadyForTaxi);
+
+    sim.apply_clearance(
+        ClearanceCommand {
+            callsign: "TEST2".into(),
+            clearance: Clearance::TaxiToGate { gate_ref: gate },
+        },
+        ControllerRole::Ground,
+    )
+    .unwrap();
+
     let mut ticks = 0;
     while sim.aircraft["TEST2"].state != AircraftState::Parked && ticks < 100_000 {
         sim.tick(1.0);

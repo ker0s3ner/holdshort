@@ -123,7 +123,12 @@ impl TaxiGraph {
     /// first taxiway/taxilane junction - a real exit - then hands off to
     /// normal routing from there. If the runway has no exit mapped before
     /// `far_end`, it rolls all the way to the far threshold instead.
-    pub fn find_arrival_path(&self, threshold: &str, far_end: &str, gate: &str) -> Option<Vec<String>> {
+    /// Returns the full rollout-to-gate route plus the route index of the
+    /// node where the aircraft actually clears the runway - the point
+    /// LandingRollout should stop at and wait for an explicit taxi
+    /// clearance, rather than rolling the real exit distance and then
+    /// continuing on to the gate unprompted.
+    pub fn find_arrival_path(&self, threshold: &str, far_end: &str, gate: &str) -> Option<(Vec<String>, usize)> {
         let mut rollout = vec![threshold.to_string()];
         let mut current = threshold.to_string();
         let mut prev: Option<String> = None;
@@ -151,10 +156,11 @@ impl TaxiGraph {
             }
         }
 
+        let exit_index = rollout.len() - 1;
         let rest = self.find_path(&current, gate)?;
         rollout.pop(); // `current` is the first node of `rest` too.
         rollout.extend(rest);
-        Some(rollout)
+        Some((rollout, exit_index))
     }
 
     pub fn nearest_node(&self, x: f64, y: f64) -> Option<&Node> {
