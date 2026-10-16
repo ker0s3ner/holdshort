@@ -10,6 +10,11 @@ interface Props {
 }
 
 const DIAGRAM_COLOR = "#ffb020";
+// Runways get their own color (matching the SMR display's white runway
+// centerlines) instead of sharing the taxiway amber - two real diagonal
+// runways at an airport like KORD otherwise look identical to a taxiway
+// glitch at a glance.
+const RUNWAY_COLOR = "#e8e8e8";
 const VIS_RING_METERS = 18_000; // ~10 statute miles, the default CRC clear-weather ring
 // How far past the airport's own geometry the satellite basemap extends,
 // so Tower Cab opens on a wide view of the surrounding area (matching real
@@ -285,7 +290,7 @@ export function TowerCabView({ airport, aircraft, selectedCallsign, onSelectAirc
         if (!a || !b) continue;
         const { sx: ax, sy: ay } = toScreen(a.x, a.y);
         const { sx: bx, sy: by } = toScreen(b.x, b.y);
-        ctx.strokeStyle = DIAGRAM_COLOR;
+        ctx.strokeStyle = e.kind === "runway" ? RUNWAY_COLOR : DIAGRAM_COLOR;
         ctx.globalAlpha = e.kind === "runway" ? 0.95 : 0.75;
         ctx.lineWidth = e.kind === "runway" ? 3 : 1.6;
         ctx.beginPath();
