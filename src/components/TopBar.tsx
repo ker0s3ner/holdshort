@@ -21,6 +21,9 @@ interface Props {
   depArrOpen: boolean;
   onBack: () => void;
   onToggleDepArr: () => void;
+  worldMapEnabled: boolean;
+  worldMapOpen: boolean;
+  onToggleWorldMap: () => void;
 }
 
 const METAR_REFRESH_MS = 5 * 60 * 1000;
@@ -29,7 +32,19 @@ const METAR_REFRESH_MS = 5 * 60 * 1000;
  * a thin menu strip underneath for the real view settings that exist
  * (datablock density, label visibility, the dep/arr window) rather than
  * decorative menu labels with nothing behind them. */
-export function TopBar({ airport, role, viewMode, clock, selected, depArrOpen, onBack, onToggleDepArr }: Props) {
+export function TopBar({
+  airport,
+  role,
+  viewMode,
+  clock,
+  selected,
+  depArrOpen,
+  onBack,
+  onToggleDepArr,
+  worldMapEnabled,
+  worldMapOpen,
+  onToggleWorldMap,
+}: Props) {
   const [metar, setMetar] = useState<string | null>(null);
   const [displayOpen, setDisplayOpen] = useState(false);
   const [showLabels, setShowLabelsState] = useState(getShowLabels());
@@ -125,6 +140,14 @@ export function TopBar({ airport, role, viewMode, clock, selected, depArrOpen, o
           >
             Dep/Arr
           </button>
+          {worldMapEnabled && (
+            <button
+              className={worldMapOpen ? "tb-menu-trigger active" : "tb-menu-trigger"}
+              onClick={onToggleWorldMap}
+            >
+              World Map
+            </button>
+          )}
         </div>
       </div>
     </>

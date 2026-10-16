@@ -6,6 +6,7 @@ import { TowerCabView } from "./components/TowerCabView";
 import { ClearancePanel } from "./components/ClearancePanel";
 import { TopBar } from "./components/TopBar";
 import { DepArrWindow } from "./components/DepArrWindow";
+import { WorldMapWindow } from "./components/WorldMapWindow";
 import { UpdateBanner } from "./components/UpdateBanner";
 import { Launcher } from "./components/Launcher";
 import { SetupWizard } from "./components/SetupWizard";
@@ -16,6 +17,8 @@ import { LoadingModal } from "./components/LoadingModal";
 import { speakReadback } from "./voice";
 import { isReadbackEnabled } from "./voiceSettings";
 import { enqueuePilotCalls } from "./pilotCalls";
+import { applyStoredTheme } from "./themeSettings";
+import { isPluginEnabled } from "./pluginSettings";
 import type { Profile } from "./profiles";
 import type {
   AircraftSnapshot,
@@ -27,6 +30,8 @@ import type {
   SimTick,
 } from "./types";
 import "./App.css";
+
+applyStoredTheme();
 
 type Screen = "setup" | "launcher" | "session";
 type ViewMode = "smr" | "tower";
@@ -53,6 +58,7 @@ function App() {
   const [profilesVersion, setProfilesVersion] = useState(0);
   const [installedVersion, setInstalledVersion] = useState(0);
   const [depArrOpen, setDepArrOpen] = useState(false);
+  const [worldMapOpen, setWorldMapOpen] = useState(false);
 
   useEffect(() => {
     invoke<AirportSummary[]>("list_installed")
@@ -193,6 +199,9 @@ function App() {
         depArrOpen={depArrOpen}
         onBack={exitToLauncher}
         onToggleDepArr={() => setDepArrOpen((v) => !v)}
+        worldMapEnabled={isPluginEnabled("worldmap")}
+        worldMapOpen={worldMapOpen}
+        onToggleWorldMap={() => setWorldMapOpen((v) => !v)}
       />
       <div className="main-area">
         {viewMode === "smr" ? (
@@ -225,6 +234,9 @@ function App() {
           onClose={() => setDepArrOpen(false)}
           onSelect={setSelectedCallsign}
         />
+      )}
+      {worldMapOpen && isPluginEnabled("worldmap") && (
+        <WorldMapWindow airport={airport} aircraft={aircraft} onClose={() => setWorldMapOpen(false)} />
       )}
       <div className="attribution">
         {airport.attribution}

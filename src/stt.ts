@@ -34,7 +34,7 @@ class Recorder {
     this.processor.connect(this.ctx.destination);
   }
 
-  stop(): Uint8Array {
+  stop(): { wav: Uint8Array; sampleCount: number } {
     this.processor?.disconnect();
     this.source?.disconnect();
     this.stream?.getTracks().forEach((t) => t.stop());
@@ -49,7 +49,7 @@ class Recorder {
       offset += c.length;
     }
     const resampled = downsampleTo16k(merged, recordedRate);
-    return encodeWav16(resampled, 16000);
+    return { wav: encodeWav16(resampled, 16000), sampleCount: resampled.length };
   }
 }
 
@@ -113,14 +113,24 @@ export async function startListening() {
   active = r;
 }
 
+/** Minimum recording length whisper.cpp can actually decode - a push that's
+ * released almost instantly can produce a near-empty WAV (the audio
+ * pipeline buffers in ~4096-sample chunks, so a very quick tap can end
+ * before a single chunk arrives), which miniaudio rejects outright rather
+ * than transcribing as silence. */
+const MIN_SAMPLES_16K = 1600; // 0.1s
+
 /** Stops the recording and returns whisper.cpp's transcription of it. */
 export async function stopListeningAndTranscribe(): Promise<string> {
   if (!active) throw new Error("not recording");
-  const wavBytes = active.stop();
+  const { wav, sampleCount } = active.stop();
   active = null;
+  if (sampleCount < MIN_SAMPLES_16K) {
+    throw new Error("recording too short - hold the key down a little longer");
+  }
   const modelPath = getWhisperModelPath();
   return invoke<string>("transcribe_audio", {
-    wavBase64: bytesToBase64(wavBytes),
+    wavBase64: bytesToBase64(wav),
     modelPath: modelPath || null,
   });
 }

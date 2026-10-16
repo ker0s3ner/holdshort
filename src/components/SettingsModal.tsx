@@ -21,16 +21,69 @@ import {
   setTtsVoiceName,
   setWhisperModelPath,
 } from "../voiceSettings";
+import { getTheme, setTheme, type Theme } from "../themeSettings";
+import { AVAILABLE_PLUGINS, isPluginEnabled, setPluginEnabled } from "../pluginSettings";
 
 interface Props {
   onClose: () => void;
   onRerunSetup: () => void;
 }
 
+type Tab = "general" | "voice" | "themes" | "plugins";
+
 /** Settings is intentionally minimal — the knobs that exist are real,
- * nothing here is decorative. More (units, traffic density) land as the
- * simulation grows. */
+ * nothing here is decorative. Tabbed instead of one long scroll once it
+ * grew past the voice section. */
 export function SettingsModal({ onClose, onRerunSetup }: Props) {
+  const [tab, setTab] = useState<Tab>("general");
+
+  return (
+    <Modal title="Settings" onClose={onClose}>
+      <div className="settings-tabs">
+        {(["general", "voice", "themes", "plugins"] as Tab[]).map((t) => (
+          <button
+            key={t}
+            className={tab === t ? "settings-tab active" : "settings-tab"}
+            onClick={() => setTab(t)}
+          >
+            {t === "general" ? "General" : t === "voice" ? "Voice" : t === "themes" ? "Themes" : "Plugins"}
+          </button>
+        ))}
+      </div>
+      {tab === "general" && <GeneralTab onRerunSetup={onRerunSetup} />}
+      {tab === "voice" && <VoiceTab />}
+      {tab === "themes" && <ThemesTab />}
+      {tab === "plugins" && <PluginsTab />}
+    </Modal>
+  );
+}
+
+function GeneralTab({ onRerunSetup }: { onRerunSetup: () => void }) {
+  const [version, setVersion] = useState("");
+
+  useEffect(() => {
+    getVersion().then(setVersion).catch(() => {});
+  }, []);
+
+  return (
+    <div className="settings-panel">
+      <div className="settings-row">
+        <span>Version</span>
+        <span className="muted">{version || "…"}</span>
+      </div>
+      <div className="settings-row">
+        <span>Update channel</span>
+        <span className="muted">GitHub Releases (auto-update on launch)</span>
+      </div>
+      <div className="settings-row">
+        <span>First-time setup (voice engine + regions)</span>
+        <button onClick={onRerunSetup}>Run again</button>
+      </div>
+    </div>
+  );
+}
+
+function VoiceTab() {
   const [readback, setReadback] = useState(isReadbackEnabled());
   const [model, setModel] = useState(getOllamaModel());
   const [ttsVoice, setTtsVoice] = useState(getTtsVoiceName());
@@ -42,7 +95,6 @@ export function SettingsModal({ onClose, onRerunSetup }: Props) {
   const [micDevices, setMicDevices] = useState<MediaDeviceInfo[]>([]);
   const [pttKey, setPttKeyState] = useState(getPttKey());
   const [recordingKey, setRecordingKey] = useState(false);
-  const [version, setVersion] = useState("");
   const [micResetState, setMicResetState] = useState<"idle" | "resetting" | "done">("idle");
 
   useEffect(() => {
@@ -50,10 +102,6 @@ export function SettingsModal({ onClose, onRerunSetup }: Props) {
     const load = () => setVoices(window.speechSynthesis.getVoices().filter(isRealisticVoice));
     load();
     window.speechSynthesis.onvoiceschanged = load;
-  }, []);
-
-  useEffect(() => {
-    getVersion().then(setVersion).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -77,20 +125,7 @@ export function SettingsModal({ onClose, onRerunSetup }: Props) {
   };
 
   return (
-    <Modal title="Settings" onClose={onClose}>
-      <div className="settings-row">
-        <span>Version</span>
-        <span className="muted">{version || "…"}</span>
-      </div>
-      <div className="settings-row">
-        <span>Update channel</span>
-        <span className="muted">GitHub Releases (auto-update on launch)</span>
-      </div>
-      <div className="settings-row">
-        <span>First-time setup (voice engine + regions)</span>
-        <button onClick={onRerunSetup}>Run again</button>
-      </div>
-
+    <div className="settings-panel">
       <p className="panel-subheader">Text-to-speech (pilot readbacks)</p>
       <div className="settings-row">
         <span>AI pilot readback</span>
@@ -158,7 +193,7 @@ export function SettingsModal({ onClose, onRerunSetup }: Props) {
 
       <p className="panel-subheader">Speech-to-text (talking to ATC)</p>
       <div className="settings-row">
-        <span>Enable push-to-talk (experimental)</span>
+        <span>Enable push-to-talk</span>
         <input
           type="checkbox"
           checked={sttEnabled}
@@ -170,9 +205,7 @@ export function SettingsModal({ onClose, onRerunSetup }: Props) {
       </div>
       <div className="settings-row">
         <span>Microphone access</span>
-        <button onClick={() => invoke("open_microphone_settings")}>
-          Open System Settings
-        </button>
+        <button onClick={() => invoke("open_microphone_settings")}>Open System Settings</button>
       </div>
       <div className="settings-row">
         <span>Holdshort not listed there at all?</span>
@@ -201,8 +234,7 @@ export function SettingsModal({ onClose, onRerunSetup }: Props) {
         in System Settings at all, that's a known quirk of this app not being signed with a paid
         Apple Developer certificate - macOS can end up with a stuck, invisible denial that never
         shows up to toggle back on. "Reset Permission" clears that. After it finishes, fully quit
-        Holdshort (⌘Q, not just closing the window) and reopen it - the next time push-to-talk
-        runs, macOS should prompt for mic access like a first launch.
+        Holdshort (⌘Q, not just closing the window) and reopen it.
       </p>
       <label className="field-label">
         Input device
@@ -255,6 +287,84 @@ export function SettingsModal({ onClose, onRerunSetup }: Props) {
         issues it to the selected aircraft. Keyword matching, not a real language model, so stick
         close to the actual phrase.
       </p>
-    </Modal>
+    </div>
+  );
+}
+
+const THEME_INFO: { id: Theme; name: string; note: string }[] = [
+  { id: "holdshort", name: "Holdshort", note: "The original dark green look." },
+  {
+    id: "crc",
+    name: "CRC-inspired",
+    note: "Dark neutral grey with a cyan accent, in the spirit of VATSIM's CRC client - not a pixel-exact copy.",
+  },
+  {
+    id: "euroscope",
+    name: "EuroScope-inspired",
+    note: "Near-black with phosphor green, in the spirit of EuroScope's classic radar scope look - not a pixel-exact copy.",
+  },
+];
+
+function ThemesTab() {
+  const [theme, setThemeState] = useState<Theme>(getTheme());
+
+  return (
+    <div className="settings-panel">
+      <p className="panel-subheader">App theme</p>
+      <div className="theme-grid">
+        {THEME_INFO.map((t) => (
+          <button
+            key={t.id}
+            className={theme === t.id ? "theme-option active" : "theme-option"}
+            onClick={() => {
+              setThemeState(t.id);
+              setTheme(t.id);
+            }}
+          >
+            <span className={`theme-swatch theme-swatch-${t.id}`} />
+            <span className="theme-option-name">{t.name}</span>
+          </button>
+        ))}
+      </div>
+      <p className="muted settings-note">
+        {THEME_INFO.find((t) => t.id === theme)?.note}
+      </p>
+      <p className="muted settings-note">
+        Themes recolor the app's own chrome - top bar, panels, buttons. The SMR and Tower Cab
+        surface displays have their own fixed rendering colors for now and aren't themed yet.
+      </p>
+    </div>
+  );
+}
+
+function PluginsTab() {
+  const [, forceRender] = useState(0);
+
+  return (
+    <div className="settings-panel">
+      <p className="panel-subheader">Plugins</p>
+      {AVAILABLE_PLUGINS.map((p) => (
+        <div key={p.id} className="plugin-row">
+          <div className="plugin-row-header">
+            <span className="plugin-name">{p.name}</span>
+            <input
+              type="checkbox"
+              checked={isPluginEnabled(p.id)}
+              onChange={(e) => {
+                setPluginEnabled(p.id, e.target.checked);
+                forceRender((n) => n + 1);
+              }}
+            />
+          </div>
+          <p className="muted plugin-description">{p.description}</p>
+        </div>
+      ))}
+      <p className="muted settings-note">
+        There's no sandboxed runtime for loading third-party plugin code yet - that's real
+        engineering work (safely running code you didn't write). This list is the built-in set
+        for now, using the same enable/disable pattern a community plugin system would use, so
+        enabled plugins show up as a button in the top bar during a session.
+      </p>
+    </div>
   );
 }

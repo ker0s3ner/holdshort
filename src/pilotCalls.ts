@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { SimEvent } from "./types";
 import { getTtsRate, getTtsVoiceName, isReadbackEnabled } from "./voiceSettings";
-import { spokenLine } from "./speech";
+import { resolveVoice, spokenLine } from "./speech";
 import { speakOnChannel } from "./radio";
 
 /** Pilots call up on their own the moment they're ready - at the gate
@@ -46,11 +46,8 @@ async function speakPilotCall(ev: SimEvent) {
   const text = spokenLine(ev.callsign, ev.message);
   const utter = new SpeechSynthesisUtterance(text);
   utter.rate = getTtsRate();
-  const voiceName = getTtsVoiceName();
-  if (voiceName) {
-    const voice = window.speechSynthesis.getVoices().find((v) => v.name === voiceName);
-    if (voice) utter.voice = voice;
-  }
+  const voice = resolveVoice(getTtsVoiceName());
+  if (voice) utter.voice = voice;
 
   await speakOnChannel(utter, (speaking) => setSpeaking(ev.callsign, speaking));
 }

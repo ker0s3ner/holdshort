@@ -183,3 +183,35 @@ export function isRealisticVoice(voice: SpeechSynthesisVoice): boolean {
   const base = voice.name.replace(/\s*\(.*\)\s*$/, "").trim();
   return !NOVELTY_VOICE_NAMES.has(base);
 }
+
+/** Common high-quality English voices, checked in this order. Used only
+ * when the user hasn't picked one in Settings - leaving utter.voice unset
+ * lets the browser/OS pick ITS OWN default, which on macOS can land on a
+ * novelty "sung" voice (Bells, Reed, Cellos...) depending on what's set in
+ * Accessibility > Spoken Content, not necessarily anything realistic. */
+const PREFERRED_DEFAULT_NAMES = ["Ava", "Samantha", "Nathan", "Evan", "Zoe", "Allison", "Alex"];
+
+/** Picks a sensible default voice from the realistic subset when the user
+ * hasn't explicitly chosen one, instead of leaving it to engine/OS defaults
+ * that can land on a novelty voice. */
+export function pickDefaultVoice(voices: SpeechSynthesisVoice[]): SpeechSynthesisVoice | undefined {
+  const realistic = voices.filter(isRealisticVoice);
+  for (const name of PREFERRED_DEFAULT_NAMES) {
+    const match = realistic.find((v) => v.name.startsWith(name));
+    if (match) return match;
+  }
+  return realistic.find((v) => v.lang.startsWith("en")) ?? realistic[0];
+}
+
+/** Resolves the voice to actually speak with: the user's explicit Settings
+ * choice if they made one, otherwise a sane realistic default rather than
+ * whatever the engine falls back to on its own. */
+export function resolveVoice(voiceName: string): SpeechSynthesisVoice | undefined {
+  if (!("speechSynthesis" in window)) return undefined;
+  const voices = window.speechSynthesis.getVoices();
+  if (voiceName) {
+    const chosen = voices.find((v) => v.name === voiceName);
+    if (chosen) return chosen;
+  }
+  return pickDefaultVoice(voices);
+}
