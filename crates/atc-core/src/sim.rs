@@ -132,6 +132,7 @@ impl Simulation {
             cleared_for_takeoff: false,
             cleared_to_land: false,
             cleared_pushback: false,
+            engine_start_approved: false,
             is_speaking: false,
             parked_at_s: None,
             ready_since_s: Some(self.clock_s),
@@ -196,6 +197,7 @@ impl Simulation {
             cleared_for_takeoff: false,
             cleared_to_land: true,
             cleared_pushback: false,
+            engine_start_approved: false,
             is_speaking: false,
             parked_at_s: None,
             ready_since_s: None,
@@ -213,7 +215,11 @@ impl Simulation {
         }
     }
 
-    pub fn apply_clearance(&mut self, cmd: ClearanceCommand) -> Result<(), String> {
+    pub fn apply_clearance(
+        &mut self,
+        cmd: ClearanceCommand,
+        active_role: ControllerRole,
+    ) -> Result<(), String> {
         // Pre-resolve anything that needs `&self` so the match body below can
         // hold a single `&mut Aircraft` borrow without conflicting with it.
         let gate_route = if let Clearance::TaxiToGate { ref gate_ref } = cmd.clearance {
@@ -239,9 +245,28 @@ impl Simulation {
             .get_mut(&cmd.callsign)
             .ok_or_else(|| format!("unknown callsign {}", cmd.callsign))?;
 
+        let owner = ac.state.owning_role();
+        if owner != active_role {
+            return Err(format!(
+                "{} is {:?}'s aircraft right now, not {:?}'s",
+                cmd.callsign, owner, active_role
+            ));
+        }
+
         match cmd.clearance {
+            Clearance::EngineStartApproved => {
+                if ac.state == AircraftState::AtGate {
+                    ac.engine_start_approved = true;
+                }
+            }
             Clearance::PushbackApproved => {
                 if ac.state == AircraftState::AtGate {
+                    if !ac.engine_start_approved {
+                        return Err(format!(
+                            "{} hasn't been cleared to start engines yet",
+                            cmd.callsign
+                        ));
+                    }
                     ac.cleared_pushback = true;
                     ac.state = AircraftState::PushingBack;
                     ac.ready_since_s = None;

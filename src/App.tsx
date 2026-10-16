@@ -127,12 +127,13 @@ function App() {
       .finally(() => setSessionLoading(false));
   }, []);
 
-  const onIssue = useCallback((callsign: string, clearance: Clearance) => {
-    invoke("issue_clearance", { command: { callsign, clearance } })
-      .then(() => {
-        if (isReadbackEnabled()) speakReadback(callsign, clearance);
-      })
-      .catch((e) => setError(String(e)));
+  // Clearance rejections (wrong controller for this aircraft's current
+  // phase, a missing prerequisite step, etc.) are routine and recoverable -
+  // they surface in ClearancePanel's own status line, not here. The
+  // app-level `error` state is reserved for the session itself breaking.
+  const onIssue = useCallback(async (callsign: string, clearance: Clearance) => {
+    await invoke("issue_clearance", { command: { callsign, clearance } });
+    if (isReadbackEnabled()) speakReadback(callsign, clearance);
   }, []);
 
   if (error) {

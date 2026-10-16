@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import type { AircraftSnapshot, AirportData, AirportSummary, ControllerRole } from "../types";
+import type { AircraftSnapshot, AirportData, AirportSummary, ControllerRole, RunwayUse } from "../types";
 import { frequencyFor } from "../frequencies";
 import {
   getDatablockMode,
@@ -73,19 +73,33 @@ export function TopBar({
   const [showGateLabels, setShowGateLabelsState] = useState(getShowGateLabels());
   const [datablockMode, setDatablockModeState] = useState<DatablockMode>(getDatablockMode());
   const [runwayOpen, setRunwayOpen] = useState(false);
-  const [activeRunway, setActiveRunway] = useState(() => {
-    const r = airport.runways[0];
-    return r ? { ref: r.ref, end: r.ends[0] } : null;
-  });
+  const [activeRunways, setActiveRunways] = useState<RunwayUse[]>([]);
   const [stationSelectOpen, setStationSelectOpen] = useState(false);
   const [atisOpen, setAtisOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const runwayMenuRef = useRef<HTMLDivElement>(null);
 
+  const refreshActiveRunways = () => {
+    invoke<RunwayUse[]>("get_active_runways")
+      .then(setActiveRunways)
+      .catch(() => {});
+  };
+
   useEffect(() => {
-    const r = airport.runways[0];
-    setActiveRunway(r ? { ref: r.ref, end: r.ends[0] } : null);
+    refreshActiveRunways();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [airport.icao]);
+
+  const toggleRunwayUse = (rwyRef: string, end: string, dep: boolean, arr: boolean) => {
+    // Optimistic local update so the checkbox responds immediately instead
+    // of waiting on the round trip.
+    setActiveRunways((prev) => {
+      const next = prev.filter((r) => !(r.rwy_ref === rwyRef && r.end === end));
+      if (dep || arr) next.push({ rwy_ref: rwyRef, end, dep, arr });
+      return next;
+    });
+    invoke("set_runway_use", { rwyRef, end, dep, arr }).catch(() => refreshActiveRunways());
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -191,28 +205,46 @@ export function TopBar({
             )}
           </div>
           <div className="tb-menu" ref={runwayMenuRef}>
-            <button className="tb-menu-trigger" onClick={() => setRunwayOpen((v) => !v)}>
-              🛫 {activeRunway ? `${activeRunway.ref} (${activeRunway.end})` : "no rwy"}
+            <button
+              className="tb-menu-trigger"
+              onClick={() => {
+                setRunwayOpen((v) => !v);
+                refreshActiveRunways();
+              }}
+            >
+              🛫{" "}
+              {activeRunways.length > 0
+                ? activeRunways.map((r) => r.end).join(" ")
+                : "no rwy"}
             </button>
             {runwayOpen && (
-              <div className="tb-menu-panel runway-toggle-panel">
+              <div className="tb-menu-panel runway-select-panel">
+                <div className="runway-select-header">
+                  <span>RWY</span>
+                  <span>DEP</span>
+                  <span>ARR</span>
+                </div>
                 {airport.runways.map((r) =>
                   r.ends.map((end) => {
-                    const isActive = activeRunway?.ref === r.ref && activeRunway?.end === end;
+                    const use = activeRunways.find((a) => a.rwy_ref === r.ref && a.end === end);
                     return (
-                      <button
-                        key={`${r.ref}-${end}`}
-                        className={isActive ? "runway-toggle active" : "runway-toggle"}
-                        title={`Runway ${r.ref}, departing ${end}`}
-                        onClick={() => {
-                          invoke("set_active_runway", { rwyRef: r.ref, departureEnd: end })
-                            .then(() => setActiveRunway({ ref: r.ref, end }))
-                            .catch(() => {});
-                          setRunwayOpen(false);
-                        }}
-                      >
-                        {end}
-                      </button>
+                      <label className="runway-select-row" key={`${r.ref}-${end}`}>
+                        <span className="runway-select-end">{end}</span>
+                        <input
+                          type="checkbox"
+                          checked={use?.dep ?? false}
+                          onChange={(e) =>
+                            toggleRunwayUse(r.ref, end, e.target.checked, use?.arr ?? false)
+                          }
+                        />
+                        <input
+                          type="checkbox"
+                          checked={use?.arr ?? false}
+                          onChange={(e) =>
+                            toggleRunwayUse(r.ref, end, use?.dep ?? false, e.target.checked)
+                          }
+                        />
+                      </label>
                     );
                   })
                 )}
@@ -264,7 +296,7 @@ export function TopBar({
         <AtisModal
           icao={airport.icao}
           metar={metar}
-          activeRunway={activeRunway}
+          activeRunways={activeRunways}
           onClose={() => setAtisOpen(false)}
         />
       )}

@@ -36,6 +36,30 @@ pub enum AircraftState {
     Parked,
 }
 
+impl AircraftState {
+    /// Which position is actually responsible for an aircraft in this
+    /// phase, so apply_clearance can refuse a clearance from a controller
+    /// who isn't working that position - a big airport really does split
+    /// ramp/ground/tower, and ground issuing a takeoff clearance isn't a
+    /// thing that happens for real just because the button exists.
+    pub fn owning_role(self) -> ControllerRole {
+        match self {
+            AircraftState::AtGate | AircraftState::PushingBack | AircraftState::Parked => {
+                ControllerRole::Ramp
+            }
+            AircraftState::ReadyForTaxi
+            | AircraftState::TaxiingToRunway
+            | AircraftState::TaxiingToGate => ControllerRole::Ground,
+            AircraftState::HoldingShort
+            | AircraftState::LinedUp
+            | AircraftState::TakeoffRoll
+            | AircraftState::Departed
+            | AircraftState::OnApproach
+            | AircraftState::LandingRollout => ControllerRole::Tower,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FlightPlan {
     pub callsign: String,
@@ -72,6 +96,10 @@ pub struct Aircraft {
     pub cleared_for_takeoff: bool,
     pub cleared_to_land: bool,
     pub cleared_pushback: bool,
+    /// Ramp's separate "cleared to start engines" step, issued before
+    /// pushback - real ramp phraseology, not just cosmetic: pushback can't
+    /// be cleared until this is true.
+    pub engine_start_approved: bool,
     /// True while an AI-generated readback is being spoken for this
     /// aircraft, so the display can ring whoever is "on frequency".
     pub is_speaking: bool,

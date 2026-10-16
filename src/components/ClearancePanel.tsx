@@ -14,7 +14,7 @@ interface Props {
   role: ControllerRole;
   selectedCallsign: string | null;
   onSelect: (callsign: string) => void;
-  onIssue: (callsign: string, clearance: Clearance) => void;
+  onIssue: (callsign: string, clearance: Clearance) => Promise<void>;
 }
 
 interface ClearanceButton {
@@ -27,6 +27,7 @@ interface ClearanceButton {
  * procedurally spawned onto final — so it's read-only for now. */
 const BUTTONS_BY_ROLE: Record<ControllerRole, ClearanceButton[]> = {
   ramp: [
+    { label: "Engine Start Approved", clearance: "EngineStartApproved" },
     { label: "Pushback Approved", clearance: "PushbackApproved" },
     { label: "Hold Position", clearance: "HoldPosition" },
     { label: "Cancel Clearance", clearance: "CancelClearance" },
@@ -73,7 +74,7 @@ export function ClearancePanel({
 
   const issue = (clearance: Clearance) => {
     if (!selectedCallsign) return;
-    onIssue(selectedCallsign, clearance);
+    onIssue(selectedCallsign, clearance).catch((e) => setHeard(`${e}`));
   };
 
   // A real controller moving on to the next aircraft on a busy frequency
@@ -119,8 +120,12 @@ export function ClearancePanel({
       if (spokenCallsign && spokenCallsign !== selectedCallsign) onSelect(spokenCallsign);
 
       if (clearance && target) {
-        onIssue(target, clearance);
-        setHeard(`"${text}" → issued to ${target}`);
+        try {
+          await onIssue(target, clearance);
+          setHeard(`"${text}" → issued to ${target}`);
+        } catch (e) {
+          setHeard(`"${text}" → ${e}`);
+        }
       } else if (clearance && !target) {
         setHeard(`"${text}" - understood, but no aircraft selected`);
       } else {

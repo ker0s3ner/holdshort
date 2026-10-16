@@ -9,6 +9,8 @@ import { speakOnChannel } from "./radio";
 export function describeClearance(clearance: Clearance): string {
   if (typeof clearance === "string") {
     switch (clearance) {
+      case "EngineStartApproved":
+        return "cleared to start engines";
       case "PushbackApproved":
         return "pushback approved";
       case "HoldPosition":

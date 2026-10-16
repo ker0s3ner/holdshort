@@ -1,6 +1,6 @@
 use atc_core::clearance::{Clearance, ClearanceCommand};
 use atc_core::model::AirportData;
-use atc_core::{airports, AircraftState, Simulation};
+use atc_core::{airports, AircraftState, ControllerRole, Simulation};
 use std::path::Path;
 
 #[test]
@@ -18,19 +18,42 @@ fn full_departure_cycle_on_real_kbur_layout() {
     assert_eq!(sim.aircraft["TEST1"].state, AircraftState::AtGate);
     assert!(sim.aircraft["TEST1"].route.len() > 1);
 
-    sim.apply_clearance(ClearanceCommand {
-        callsign: "TEST1".into(),
-        clearance: Clearance::PushbackApproved,
-    })
+    sim.apply_clearance(
+        ClearanceCommand {
+            callsign: "TEST1".into(),
+            clearance: Clearance::EngineStartApproved,
+        },
+        ControllerRole::Ramp,
+    )
+    .unwrap();
+    sim.apply_clearance(
+        ClearanceCommand {
+            callsign: "TEST1".into(),
+            clearance: Clearance::PushbackApproved,
+        },
+        ControllerRole::Ramp,
+    )
     .unwrap();
     assert_eq!(sim.aircraft["TEST1"].state, AircraftState::PushingBack);
 
-    sim.apply_clearance(ClearanceCommand {
-        callsign: "TEST1".into(),
-        clearance: Clearance::TaxiToRunway {
-            via_hold_short: None,
+    // Let pushback actually finish - ground can't clear a taxi for an
+    // aircraft that's still ramp's (mid-pushback).
+    let mut ticks = 0;
+    while sim.aircraft["TEST1"].state != AircraftState::ReadyForTaxi && ticks < 100_000 {
+        sim.tick(1.0);
+        ticks += 1;
+    }
+    assert_eq!(sim.aircraft["TEST1"].state, AircraftState::ReadyForTaxi);
+
+    sim.apply_clearance(
+        ClearanceCommand {
+            callsign: "TEST1".into(),
+            clearance: Clearance::TaxiToRunway {
+                via_hold_short: None,
+            },
         },
-    })
+        ControllerRole::Ground,
+    )
     .unwrap();
 
     // Run the clock forward until the aircraft reaches the runway hold line.
@@ -41,17 +64,23 @@ fn full_departure_cycle_on_real_kbur_layout() {
     }
     assert_eq!(sim.aircraft["TEST1"].state, AircraftState::HoldingShort);
 
-    sim.apply_clearance(ClearanceCommand {
-        callsign: "TEST1".into(),
-        clearance: Clearance::LineUpAndWait,
-    })
+    sim.apply_clearance(
+        ClearanceCommand {
+            callsign: "TEST1".into(),
+            clearance: Clearance::LineUpAndWait,
+        },
+        ControllerRole::Tower,
+    )
     .unwrap();
     assert_eq!(sim.aircraft["TEST1"].state, AircraftState::LinedUp);
 
-    sim.apply_clearance(ClearanceCommand {
-        callsign: "TEST1".into(),
-        clearance: Clearance::ClearedForTakeoff,
-    })
+    sim.apply_clearance(
+        ClearanceCommand {
+            callsign: "TEST1".into(),
+            clearance: Clearance::ClearedForTakeoff,
+        },
+        ControllerRole::Tower,
+    )
     .unwrap();
     assert_eq!(sim.aircraft["TEST1"].state, AircraftState::TakeoffRoll);
 

@@ -31,10 +31,17 @@ export function parseMetar(metar: string): ParsedMetar {
   return { wind, visibility, clouds, tempDew, qnhHpa };
 }
 
+export interface AtisRunwayUse {
+  rwy_ref: string;
+  end: string;
+  dep: boolean;
+  arr: boolean;
+}
+
 export interface AtisInput {
   icao: string;
   letter: string;
-  activeRunway: { ref: string; end: string } | null;
+  activeRunways: AtisRunwayUse[];
   metar: string | null;
   qnh: string;
   remarks: string;
@@ -51,7 +58,10 @@ export function generateAtisText(input: AtisInput): string {
   ).padStart(2, "0")}Z`;
 
   const parsed = input.metar ? parseMetar(input.metar) : null;
-  const rwy = input.activeRunway?.end ?? "---";
+  const depRwys = input.activeRunways.filter((r) => r.dep).map((r) => r.end);
+  const arrRwys = input.activeRunways.filter((r) => r.arr).map((r) => r.end);
+  const depLine = depRwys.length ? `DEP RWY ${depRwys.join(" ")}` : "DEP RWY ---";
+  const arrLine = arrRwys.length ? `ARR RWY ${arrRwys.join(" ")}` : "ARR RWY ---";
 
   const weatherLine = [
     parsed?.wind ?? "WIND NOT AVAILABLE",
@@ -65,7 +75,7 @@ export function generateAtisText(input: AtisInput): string {
 
   const lines = [
     `${input.icao} ATIS INFO ${input.letter} TIME ${time}`,
-    `DEP RWY ${rwy}  ARR RWY ${rwy}`,
+    `${depLine}  ${arrLine}`,
     weatherLine,
     ...(input.remarks.trim() ? [input.remarks.trim().toUpperCase()] : []),
     `ACKNOWLEDGE RECEIPT OF INFORMATION ${input.letter}`,

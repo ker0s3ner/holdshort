@@ -11,4 +11,4 @@ pub use clearance::{Clearance, ClearanceCommand};
 pub use graph::TaxiGraph;
 pub use model::AirportData;
 pub use sim::{SimEvent, Simulation};
-pub use traffic::TrafficGenerator;
+pub use traffic::{RunwayUse, TrafficGenerator};

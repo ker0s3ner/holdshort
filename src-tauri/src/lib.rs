@@ -1,7 +1,8 @@
 use atc_core::airports::AirportSummary;
 use atc_core::clearance::ClearanceCommand;
 use atc_core::{
-    airports, AircraftState, AirportData, ControllerRole, FlightRule, Simulation, TrafficGenerator,
+    airports, AircraftState, AirportData, ControllerRole, FlightRule, RunwayUse, Simulation,
+    TrafficGenerator,
 };
 use serde::Serialize;
 use std::path::PathBuf;
@@ -9,16 +10,14 @@ use std::sync::Mutex;
 use std::time::Duration;
 use tauri::{Emitter, Manager};
 
-struct ActiveRunway {
-    rwy_ref: String,
-    departure_end: String,
-}
-
 struct AppState {
     sim: Mutex<Simulation>,
     traffic: Mutex<TrafficGenerator>,
     active: Mutex<bool>,
-    runway: Mutex<ActiveRunway>,
+    /// Every runway end tower has configured for use right now - a real
+    /// airport can run several at once (or both ends of one, opposite
+    /// directions), each serving departures, arrivals, or both.
+    runways: Mutex<Vec<RunwayUse>>,
     role: Mutex<ControllerRole>,
     data_dir: PathBuf,
 }
@@ -90,22 +89,22 @@ fn start_session(
 
     // Busier (more gates) airports see more frequent traffic, like real
     // operations - a 27-gate field like Kaunas stays quiet, a 300+ gate hub
-    // like Heathrow or Frankfurt spawns much more often. But this sim only
-    // models one active runway at a time (a real hub splits load across
-    // several in parallel), so the floor has to reflect what a single
-    // runway can actually turn around - about one operation every 40+
-    // seconds - rather than how many gates a huge airport has. The traffic
-    // generator also refuses to spawn onto an occupied runway outright, so
-    // this floor is a pacing choice, not the only thing preventing stacking.
+    // like Heathrow or Frankfurt spawns much more often. Multiple runways
+    // can now be configured active at once, so this floor is deliberately
+    // generous rather than scaled down - each additional active runway end
+    // just means more of that traffic can actually get moving instead of
+    // queuing on one.
     let gate_count = airport.parking_positions.len().max(1) as f64;
     let spawn_interval_s = (2200.0 / gate_count).clamp(40.0, 150.0);
 
     *state.sim.lock().unwrap() = Simulation::new(airport);
     *state.traffic.lock().unwrap() = TrafficGenerator::new(spawn_interval_s, &icao);
-    *state.runway.lock().unwrap() = ActiveRunway {
+    *state.runways.lock().unwrap() = vec![RunwayUse {
         rwy_ref,
-        departure_end,
-    };
+        end: departure_end,
+        dep: true,
+        arr: true,
+    }];
     *state.role.lock().unwrap() = role;
     *state.active.lock().unwrap() = true;
     Ok(())
@@ -121,13 +120,26 @@ fn get_airport(state: tauri::State<AppState>) -> AirportData {
     state.sim.lock().unwrap().airport.clone()
 }
 
-/// Switches which runway new departures/arrivals are assigned to - real
-/// airports change their active runway with the wind, this was hardcoded
-/// to the airport data's first runway and never changeable at runtime.
-/// Traffic already in the air/on the ground on the old runway keeps going;
-/// this only affects what gets assigned next.
 #[tauri::command]
-fn set_active_runway(state: tauri::State<AppState>, rwy_ref: String, departure_end: String) -> Result<(), String> {
+fn get_active_runways(state: tauri::State<AppState>) -> Vec<RunwayUse> {
+    state.runways.lock().unwrap().clone()
+}
+
+/// Sets whether a specific runway end is in use for departures and/or
+/// arrivals - real towers run several runways (or both ends of one) at
+/// once, each serving its own mix of traffic, not one single active
+/// runway for the whole field. Setting both dep and arr false drops that
+/// end from the active list entirely; traffic already in the air/on the
+/// ground on a since-deactivated runway keeps going, this only affects
+/// what gets assigned next.
+#[tauri::command]
+fn set_runway_use(
+    state: tauri::State<AppState>,
+    rwy_ref: String,
+    end: String,
+    dep: bool,
+    arr: bool,
+) -> Result<(), String> {
     let sim = state.sim.lock().unwrap();
     let rw = sim
         .airport
@@ -135,14 +147,21 @@ fn set_active_runway(state: tauri::State<AppState>, rwy_ref: String, departure_e
         .iter()
         .find(|r| r.ref_ == rwy_ref)
         .ok_or_else(|| format!("unknown runway {rwy_ref}"))?;
-    if !rw.ends.iter().any(|e| e == &departure_end) {
-        return Err(format!("{rwy_ref} has no end {departure_end}"));
+    if !rw.ends.iter().any(|e| e == &end) {
+        return Err(format!("{rwy_ref} has no end {end}"));
     }
     drop(sim);
-    *state.runway.lock().unwrap() = ActiveRunway {
-        rwy_ref,
-        departure_end,
-    };
+
+    let mut runways = state.runways.lock().unwrap();
+    runways.retain(|r| !(r.rwy_ref == rwy_ref && r.end == end));
+    if dep || arr {
+        runways.push(RunwayUse {
+            rwy_ref,
+            end,
+            dep,
+            arr,
+        });
+    }
     Ok(())
 }
 
@@ -153,7 +172,8 @@ fn get_traffic(state: tauri::State<AppState>) -> SimTick {
 
 #[tauri::command]
 fn issue_clearance(state: tauri::State<AppState>, command: ClearanceCommand) -> Result<(), String> {
-    state.sim.lock().unwrap().apply_clearance(command)
+    let role = *state.role.lock().unwrap();
+    state.sim.lock().unwrap().apply_clearance(command, role)
 }
 
 #[tauri::command]
@@ -690,10 +710,12 @@ pub fn run() {
                 sim: Mutex::new(sim),
                 traffic: Mutex::new(traffic),
                 active: Mutex::new(false),
-                runway: Mutex::new(ActiveRunway {
+                runways: Mutex::new(vec![RunwayUse {
                     rwy_ref: "15/33".to_string(),
-                    departure_end: "15".to_string(),
-                }),
+                    end: "15".to_string(),
+                    dep: true,
+                    arr: true,
+                }]),
                 role: Mutex::new(ControllerRole::Ground),
                 data_dir,
             });
@@ -715,9 +737,9 @@ pub fn run() {
                     }
                     let mut sim = state.sim.lock().unwrap();
                     let mut traffic = state.traffic.lock().unwrap();
-                    let rwy = state.runway.lock().unwrap();
-                    let spawn_event = traffic.tick(dt, &mut sim, &rwy.rwy_ref, &rwy.departure_end);
-                    drop(rwy);
+                    let runways = state.runways.lock().unwrap();
+                    let spawn_event = traffic.tick(dt, &mut sim, &runways);
+                    drop(runways);
                     let mut pilot_events = sim.tick(dt);
                     sim.apply_automation(*state.role.lock().unwrap());
                     drop(traffic);
@@ -766,7 +788,8 @@ pub fn run() {
             refresh_launch_services,
             open_microphone_settings,
             reset_microphone_permission,
-            set_active_runway
+            get_active_runways,
+            set_runway_use
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -8,12 +8,12 @@ import {
   setAtisQnh,
   setAtisRemarks,
 } from "../atisSettings";
-import { generateAtisText, parseMetar } from "../atis";
+import { generateAtisText, parseMetar, type AtisRunwayUse } from "../atis";
 
 interface Props {
   icao: string;
   metar: string | null;
-  activeRunway: { ref: string; end: string } | null;
+  activeRunways: AtisRunwayUse[];
   onClose: () => void;
 }
 
@@ -24,7 +24,7 @@ interface Props {
  * altimeter are pulled straight from the live METAR instead of being
  * retyped by hand - QNH stays editable since the METAR only updates
  * hourly and a real controller might need to correct it in between. */
-export function AtisModal({ icao, metar, activeRunway, onClose }: Props) {
+export function AtisModal({ icao, metar, activeRunways, onClose }: Props) {
   const [letter, setLetterState] = useState(getAtisLetter(icao));
   const [remarks, setRemarksState] = useState(getAtisRemarks(icao));
   const [qnh, setQnhState] = useState(getAtisQnh(icao));
@@ -40,7 +40,7 @@ export function AtisModal({ icao, metar, activeRunway, onClose }: Props) {
   const text = generateAtisText({
     icao,
     letter,
-    activeRunway,
+    activeRunways,
     metar,
     qnh,
     remarks,

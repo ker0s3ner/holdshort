@@ -2,6 +2,19 @@ use crate::aircraft::AircraftState;
 use crate::sim::{SimEvent, Simulation};
 use rand::seq::{IteratorRandom, SliceRandom};
 use rand::Rng;
+use serde::{Deserialize, Serialize};
+
+/// One runway end tower has configured for use, and for what - a real
+/// airport can run several runways (or both ends of one) at once, each
+/// serving departures, arrivals, or both, rather than the whole field
+/// funneling through a single active runway.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RunwayUse {
+    pub rwy_ref: String,
+    pub end: String,
+    pub dep: bool,
+    pub arr: bool,
+}
 
 /// (ICAO airline code, telephony/brand name spoken on the radio)
 pub type Airline = (&'static str, &'static str);
@@ -117,8 +130,7 @@ impl TrafficGenerator {
         &mut self,
         dt_s: f64,
         sim: &mut Simulation,
-        runway_ref: &str,
-        departure_end: &str,
+        runways: &[RunwayUse],
     ) -> Option<SimEvent> {
         self.next_spawn_in_s -= dt_s;
         if self.next_spawn_in_s > 0.0 {
@@ -126,25 +138,45 @@ impl TrafficGenerator {
         }
         self.next_spawn_in_s = self.spawn_interval_s;
 
-        // There's only one active runway in this sim (real hubs spread
-        // load across several in parallel, which this doesn't model), so
-        // never spawn a new arrival or departure onto it while another
-        // aircraft is already using it - that's how two aircraft end up
-        // occupying the same runway at once.
-        let runway_occupied = sim.aircraft.values().any(|a| {
-            a.flight_plan.assigned_runway == runway_ref
-                && matches!(
-                    a.state,
-                    AircraftState::TakeoffRoll
-                        | AircraftState::LinedUp
-                        | AircraftState::LandingRollout
-                )
-        });
-        if runway_occupied {
-            return None;
-        }
+        // Never spawn a new arrival or departure onto a runway end while
+        // another aircraft is already using it - that's how two aircraft
+        // end up occupying the same runway at once. With several active
+        // runway ends configured, an occupied one just drops out of this
+        // tick's candidate list rather than blocking every spawn.
+        let is_occupied = |rwy_ref: &str| {
+            sim.aircraft.values().any(|a| {
+                a.flight_plan.assigned_runway == rwy_ref
+                    && matches!(
+                        a.state,
+                        AircraftState::TakeoffRoll
+                            | AircraftState::LinedUp
+                            | AircraftState::LandingRollout
+                    )
+            })
+        };
 
         let mut rng = rand::thread_rng();
+        let dep_candidates: Vec<&RunwayUse> =
+            runways.iter().filter(|r| r.dep && !is_occupied(&r.rwy_ref)).collect();
+        let arr_candidates: Vec<&RunwayUse> =
+            runways.iter().filter(|r| r.arr && !is_occupied(&r.rwy_ref)).collect();
+        if dep_candidates.is_empty() && arr_candidates.is_empty() {
+            return None;
+        }
+        let is_arrival = if dep_candidates.is_empty() {
+            true
+        } else if arr_candidates.is_empty() {
+            false
+        } else {
+            rng.gen_bool(0.5)
+        };
+        let chosen = if is_arrival {
+            *arr_candidates.choose(&mut rng).unwrap()
+        } else {
+            *dep_candidates.choose(&mut rng).unwrap()
+        };
+        let runway_ref = chosen.rwy_ref.as_str();
+        let departure_end = chosen.end.as_str();
         let occupied: Vec<String> = sim
             .aircraft
             .values()
@@ -189,7 +221,6 @@ impl TrafficGenerator {
             .choose(&mut rng)
             .unwrap_or(&self.other_airports[0]);
 
-        let is_arrival = rng.gen_bool(0.5);
         if is_arrival {
             if let Ok(()) =
                 sim.spawn_arrival(&callsign, ac_type, runway_ref, departure_end, gate)

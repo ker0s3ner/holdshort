@@ -20,6 +20,16 @@ export interface AirportEdge {
   length_m: number;
 }
 
+/** One runway end tower has configured for use right now, and for what -
+ * several can be active at once, each serving departures, arrivals, or
+ * both, mirroring the Rust side's RunwayUse. */
+export interface RunwayUse {
+  rwy_ref: string;
+  end: string;
+  dep: boolean;
+  arr: boolean;
+}
+
 export interface Runway {
   ref: string;
   ends: string[];
@@ -114,6 +124,7 @@ export interface AirportSummary {
 export type ControllerRole = "ramp" | "ground" | "tower" | "approach";
 
 export type Clearance =
+  | "EngineStartApproved"
   | "PushbackApproved"
   | { TaxiToRunway: { via_hold_short: string | null } }
   | { TaxiToGate: { gate_ref: string } }

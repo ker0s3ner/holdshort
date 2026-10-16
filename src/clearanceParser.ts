@@ -19,6 +19,12 @@ export function parseClearance(heard: string): Clearance | null {
   if (/\bhold\s*short\b/.test(text) || /\bhold\s*position\b/.test(text) || /\bhold\b/.test(text)) {
     return "HoldPosition";
   }
+  if (
+    /\b(engine\s*start|start\s*engines?)\b.*\bapprov/.test(text) ||
+    /\bclear(ed)?\s*to\s*start\b/.test(text)
+  ) {
+    return "EngineStartApproved";
+  }
   if (/\bpush\s*back\b/.test(text) || /\bpush\s*(and\s*start|&\s*start)?\s*approved\b/.test(text)) {
     return "PushbackApproved";
   }

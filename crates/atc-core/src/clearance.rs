@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 /// typed/structured input directly onto these.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Clearance {
+    EngineStartApproved,
     PushbackApproved,
     TaxiToRunway { via_hold_short: Option<String> },
     TaxiToGate { gate_ref: String },
