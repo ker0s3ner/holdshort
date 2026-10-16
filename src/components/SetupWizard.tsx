@@ -146,7 +146,7 @@ function VoiceStep({ onNext, onSkip }: { onNext: () => void; onSkip: () => void 
           )}
         </div>
         <div className="setup-check-row">
-          <span>{status?.whisper_model_present ? "✓" : "–"} Speech model (~140MB)</span>
+          <span>{status?.whisper_model_present ? "✓" : "–"} Speech model (~466MB)</span>
           {!status?.whisper_model_present && (
             <button
               disabled={busy !== "idle"}

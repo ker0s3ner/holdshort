@@ -263,7 +263,7 @@ function VoiceTab() {
         Whisper model path (optional override)
         <input
           type="text"
-          placeholder="~/.cache/whisper/ggml-base.en.bin"
+          placeholder="~/.cache/whisper/ggml-small.en.bin"
           value={whisperModel}
           onChange={(e) => {
             setWhisperModelState(e.target.value);
@@ -279,8 +279,8 @@ function VoiceTab() {
         </a>
         . Install it with <code>brew install whisper-cpp</code>, then download a model, e.g.{" "}
         <code>
-          mkdir -p ~/.cache/whisper &amp;&amp; curl -L -o ~/.cache/whisper/ggml-base.en.bin
-          https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin
+          mkdir -p ~/.cache/whisper &amp;&amp; curl -L -o ~/.cache/whisper/ggml-small.en.bin
+          https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.en.bin
         </code>
         . Once enabled, hold the mic button in the clearance panel or the push-to-talk key above
         to talk - it tries to match what you say to a clearance (e.g. "cleared for takeoff") and

@@ -64,7 +64,7 @@ export function setSttEnabled(enabled: boolean) {
   setItem(STT_ENABLED_KEY, String(enabled));
 }
 
-/** Empty string means "use the default ~/.cache/whisper/ggml-base.en.bin path". */
+/** Empty string means "use the default ~/.cache/whisper/ggml-small.en.bin path". */
 export function getWhisperModelPath(): string {
   return getItem(WHISPER_MODEL_KEY, "");
 }

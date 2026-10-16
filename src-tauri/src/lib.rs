@@ -257,9 +257,15 @@ fn find_executable(name: &str) -> Option<String> {
         .filter(|s| !s.is_empty())
 }
 
+/// "base.en" was the original default but its accuracy on short, noisy
+/// ATC-style phrases was poor enough to hear things like "percentages"
+/// for "pushback approved" - "small.en" is a meaningfully more accurate
+/// model (still CPU-speed on a short clip) for a larger one-time download
+/// (~466MB vs ~140MB), which is a trade worth making for speech that's
+/// actually supposed to drive the sim.
 fn default_whisper_model_path() -> String {
     format!(
-        "{}/.cache/whisper/ggml-base.en.bin",
+        "{}/.cache/whisper/ggml-small.en.bin",
         std::env::var("HOME").unwrap_or_default()
     )
 }
@@ -363,8 +369,9 @@ async fn pull_ollama_model(model: String) -> Result<String, String> {
     .map_err(|e| format!("pull task panicked: {e}"))?
 }
 
-/// Downloads the base English whisper.cpp model into ~/.cache/whisper -
-/// about 140MB, a one-time cost so speech-to-text works offline afterward.
+/// Downloads the small English whisper.cpp model into ~/.cache/whisper -
+/// about 466MB, a one-time cost so speech-to-text works offline afterward
+/// and is actually accurate enough to drive the sim.
 #[tauri::command]
 async fn download_whisper_model() -> Result<(), String> {
     let model_path = default_whisper_model_path();
@@ -373,7 +380,7 @@ async fn download_whisper_model() -> Result<(), String> {
         .ok_or("invalid model path")?;
     std::fs::create_dir_all(dir).map_err(|e| format!("couldn't create {dir:?}: {e}"))?;
 
-    let url = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin";
+    let url = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.en.bin";
     let resp = reqwest::get(url)
         .await
         .map_err(|e| format!("download failed: {e}"))?;
@@ -458,17 +465,16 @@ async fn transcribe_audio(wav_base64: String, model_path: Option<String>) -> Res
         .decode(wav_base64)
         .map_err(|e| format!("couldn't decode recorded audio: {e}"))?;
 
-    let model = model_path.unwrap_or_else(|| {
-        format!(
-            "{}/.cache/whisper/ggml-base.en.bin",
-            std::env::var("HOME").unwrap_or_default()
-        )
-    });
+    // This used to hardcode its own copy of the default path, separate
+    // from default_whisper_model_path() - meant the setup wizard's "is the
+    // model there" check and this command's actual fallback path could
+    // silently disagree if one got edited and not the other.
+    let model = model_path.unwrap_or_else(default_whisper_model_path);
     if !std::path::Path::new(&model).exists() {
         return Err(format!(
             "No whisper model found at {model}. Install whisper.cpp with `brew install \
              whisper-cpp`, then download a model, e.g. `curl -L -o {model} \
-             https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin` \
+             https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.en.bin` \
              (create the ~/.cache/whisper folder first), or set a custom model path in Settings."
         ));
     }
@@ -487,8 +493,30 @@ async fn transcribe_audio(wav_base64: String, model_path: Option<String>) -> Res
                 .to_string(),
         );
     };
+    // Whisper's "initial prompt" biases its decoding toward whatever
+    // vocabulary and style the prompt is written in - a well-known trick
+    // for domain-specific speech it was never fine-tuned on. Short ATC
+    // phrases ("pushback", "taxi", "hold short"...) aren't common in its
+    // training data and were getting misheard as unrelated words entirely
+    // without this. -l en also stops it from occasionally guessing the
+    // wrong language on a short, noisy clip and transcribing garbage.
+    const ATC_PROMPT: &str = "Air traffic control radio phraseology. Pushback approved. \
+         Taxi to runway via taxiway alpha, bravo, charlie. Hold short. Line up and wait. \
+         Cleared for takeoff. Cleared to land. Go around. Cancel clearance. Request taxi \
+         to gate. Ready for departure. Runway vacated. Standby. Roger. Wilco. Heavy. Super.";
     let output = std::process::Command::new(whisper_cli)
-        .args(["-m", &model, "-f", wav_path.to_string_lossy().as_ref(), "-nt", "-np"])
+        .args([
+            "-m",
+            &model,
+            "-f",
+            wav_path.to_string_lossy().as_ref(),
+            "-l",
+            "en",
+            "--prompt",
+            ATC_PROMPT,
+            "-nt",
+            "-np",
+        ])
         .output();
     let _ = std::fs::remove_file(&wav_path);
 
