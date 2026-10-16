@@ -18,6 +18,18 @@
 # Usage: scripts/resign-local.sh [/path/to/Holdshort.app]
 set -euo pipefail
 
+# Guards against two runs overlapping (e.g. the hourly LaunchAgent firing
+# while someone's running this by hand) - a concurrent codesign on the same
+# bundle is what produces the stray .cstemp files handled below in the
+# first place. mkdir is atomic, so it doubles as a portable lock (no
+# flock on macOS).
+LOCK_DIR="/tmp/holdshort-resign.lock"
+if ! mkdir "$LOCK_DIR" 2>/dev/null; then
+  echo "Another resign is already running - skipping." >&2
+  exit 0
+fi
+trap 'rmdir "$LOCK_DIR"' EXIT
+
 APP_PATH="${1:-/Applications/Holdshort.app}"
 
 if [[ ! -d "$APP_PATH" ]]; then
@@ -34,6 +46,12 @@ if [[ -z "$IDENTITY" ]]; then
   echo "generates the certificate, then re-run this script." >&2
   exit 1
 fi
+
+# A codesign run that gets interrupted (the Mac sleeping mid-sign, two
+# triggers overlapping) can leave its own ".cstemp" scratch files behind
+# inside the bundle - codesign then chokes on those as if they were real
+# Mach-O components on the next run ("invalid or unsupported format").
+find "$APP_PATH" -name "*.cstemp" -delete
 
 echo "Signing with: $IDENTITY"
 codesign --force --deep --sign "$IDENTITY" "$APP_PATH"
