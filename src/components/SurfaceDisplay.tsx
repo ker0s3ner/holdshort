@@ -6,6 +6,7 @@ import {
   getShowRunwayLabels,
   getShowTaxiwayLabels,
 } from "../displaySettings";
+import { getRadarPalette } from "../radarPalette";
 
 interface Props {
   airport: AirportData;
@@ -13,15 +14,6 @@ interface Props {
   selectedCallsign: string | null;
   onSelectAircraft: (callsign: string | null) => void;
 }
-
-const BG_COLOR = "#0a3f45";
-const PAVEMENT_COLOR = "#060606";
-
-const AREA_FILL: Record<string, string> = {
-  terminal: "#888f93",
-  hangar: "#767d81",
-  apron: "#0e4a50",
-};
 
 const EDGE_WIDTH: Record<string, number> = {
   runway: 15,
@@ -160,18 +152,20 @@ export function SurfaceDisplay({ airport, aircraft, selectedCallsign, onSelectAi
     };
 
     const draw = () => {
+      const palette = getRadarPalette();
       const w = canvas.width / dpr;
       const h = canvas.height / dpr;
       const { scale } = viewRef.current;
       ctx.save();
       ctx.scale(dpr, dpr);
-      ctx.fillStyle = BG_COLOR;
+      ctx.fillStyle = palette.bg;
       ctx.fillRect(0, 0, w, h);
 
       // Building/ramp footprints under the pavement network.
       for (const area of airport.areas) {
         if (area.points.length < 3) continue;
-        ctx.fillStyle = AREA_FILL[area.kind] ?? "#555";
+        ctx.fillStyle =
+          palette.areaFill[area.kind as keyof typeof palette.areaFill] ?? palette.areaFill.default;
         ctx.beginPath();
         area.points.forEach(([x, y], i) => {
           const { sx, sy } = toScreen(x, y);
@@ -191,7 +185,7 @@ export function SurfaceDisplay({ airport, aircraft, selectedCallsign, onSelectAi
         const { sx: ax, sy: ay } = toScreen(a.x, a.y);
         const { sx: bx, sy: by } = toScreen(b.x, b.y);
         const baseWidth = EDGE_WIDTH[e.kind] ?? 4;
-        ctx.strokeStyle = e.kind === "gate_link" ? "#1c2b22" : PAVEMENT_COLOR;
+        ctx.strokeStyle = e.kind === "gate_link" ? palette.gateLinkStroke : palette.pavement;
         ctx.lineWidth = Math.max(baseWidth * (scale / 2.2), 1.5);
         ctx.lineCap = "round";
         ctx.beginPath();
@@ -208,7 +202,7 @@ export function SurfaceDisplay({ airport, aircraft, selectedCallsign, onSelectAi
         if (!a || !b) continue;
         const { sx: ax, sy: ay } = toScreen(a.x, a.y);
         const { sx: bx, sy: by } = toScreen(b.x, b.y);
-        ctx.strokeStyle = "#e8e8e8";
+        ctx.strokeStyle = palette.runwayCenterline;
         ctx.lineWidth = Math.max(1.5 * (scale / 2.2), 0.8);
         ctx.setLineDash([Math.max(6 * (scale / 2.2), 3), Math.max(6 * (scale / 2.2), 3)]);
         ctx.beginPath();
@@ -223,7 +217,7 @@ export function SurfaceDisplay({ airport, aircraft, selectedCallsign, onSelectAi
       const showGateLabels = getShowGateLabels();
       const datablockMode = getDatablockMode();
 
-      ctx.fillStyle = "#cfe8d8";
+      ctx.fillStyle = palette.parkingDot;
       for (const p of airport.parking_positions) {
         const n = nodeById.get(p.node);
         if (!n) continue;
@@ -234,7 +228,7 @@ export function SurfaceDisplay({ airport, aircraft, selectedCallsign, onSelectAi
       }
 
       if (showRunwayLabels) {
-        ctx.fillStyle = "#eafff4";
+        ctx.fillStyle = palette.runwayLabel;
         ctx.font = "bold 11px monospace";
         for (const r of airport.runways) {
           const start = nodeById.get(r.node_start);
@@ -251,7 +245,7 @@ export function SurfaceDisplay({ airport, aircraft, selectedCallsign, onSelectAi
       }
 
       if (showTaxiwayLabels) {
-        ctx.fillStyle = "#ffd866";
+        ctx.fillStyle = palette.taxiwayLabel;
         ctx.font = "bold 10px monospace";
         for (const t of taxiwayLabels) {
           const { sx, sy } = toScreen(t.x, t.y);
@@ -260,7 +254,7 @@ export function SurfaceDisplay({ airport, aircraft, selectedCallsign, onSelectAi
       }
 
       if (showGateLabels) {
-        ctx.fillStyle = "#cfe8d8";
+        ctx.fillStyle = palette.gateLabel;
         ctx.font = "9px monospace";
         for (const p of airport.parking_positions) {
           if (!p.ref) continue;
@@ -275,7 +269,11 @@ export function SurfaceDisplay({ airport, aircraft, selectedCallsign, onSelectAi
         const { sx, sy } = toScreen(ac.x, ac.y);
         const isSelected = ac.callsign === selectedRef.current;
         const isArrival = ac.state === "LandingRollout" || ac.state === "OnApproach";
-        const color = isSelected ? "#ffdf5e" : isArrival ? "#7fc8ff" : "#f2f6f3";
+        const color = isSelected
+          ? palette.aircraftSelected
+          : isArrival
+            ? palette.aircraftArrival
+            : palette.aircraftDefault;
 
         ctx.save();
         ctx.translate(sx, sy);
@@ -288,7 +286,7 @@ export function SurfaceDisplay({ airport, aircraft, selectedCallsign, onSelectAi
         // independent of selection - yellow if it's also the aircraft
         // you've selected, white otherwise (matching live-ATC clients).
         if (ac.is_speaking) {
-          ctx.strokeStyle = isSelected ? "#ffdf5e" : "#ffffff";
+          ctx.strokeStyle = isSelected ? palette.aircraftSelected : palette.speakingRingDefault;
           ctx.lineWidth = 1.5;
           ctx.beginPath();
           ctx.arc(sx, sy, 11, 0, Math.PI * 2);

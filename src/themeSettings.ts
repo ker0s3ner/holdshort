@@ -13,9 +13,10 @@ export function getTheme(): Theme {
 }
 
 /** Applies the theme to the document root (a CSS [data-theme] selector)
- * and remembers it. Only the app's own chrome (top bar, panels, buttons)
- * is themed this way - the SMR/Tower Cab canvas rendering has its own
- * hardcoded colors and isn't affected yet. */
+ * and remembers it. Themes the app's own chrome (top bar, panels, buttons)
+ * via CSS variables; the SMR/Tower Cab canvas rendering reads the same
+ * choice separately through radarPalette.ts, since <canvas> can't use CSS
+ * variables directly. */
 export function setTheme(theme: Theme) {
   try {
     localStorage.setItem(THEME_KEY, theme);

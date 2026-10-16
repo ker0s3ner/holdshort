@@ -6,6 +6,7 @@ import {
   getShowRunwayLabels,
   getShowTaxiwayLabels,
 } from "../displaySettings";
+import { getRadarPalette, hexToRgbChannels } from "../radarPalette";
 
 interface Props {
   airport: AirportData;
@@ -14,12 +15,6 @@ interface Props {
   onSelectAircraft: (callsign: string | null) => void;
 }
 
-const DIAGRAM_COLOR = "#ffb020";
-// Runways get their own color (matching the SMR display's white runway
-// centerlines) instead of sharing the taxiway amber - two real diagonal
-// runways at an airport like KORD otherwise look identical to a taxiway
-// glitch at a glance.
-const RUNWAY_COLOR = "#e8e8e8";
 const VIS_RING_METERS = 18_000; // ~10 statute miles, the default CRC clear-weather ring
 // How far past the airport's own geometry the satellite basemap extends,
 // so Tower Cab opens on a wide view of the surrounding area (matching real
@@ -237,12 +232,13 @@ export function TowerCabView({ airport, aircraft, selectedCallsign, onSelectAirc
     };
 
     const draw = () => {
+      const palette = getRadarPalette();
       const w = canvas.width / dpr;
       const h = canvas.height / dpr;
       const { panX, panY } = viewRef.current;
       ctx.save();
       ctx.scale(dpr, dpr);
-      ctx.fillStyle = "#1a1f26";
+      ctx.fillStyle = palette.bg;
       ctx.fillRect(0, 0, w, h);
 
       for (const tile of tiles) {
@@ -265,14 +261,15 @@ export function TowerCabView({ airport, aircraft, selectedCallsign, onSelectAirc
         center.sy,
         visRadiusPx,
       );
-      grad.addColorStop(0, "rgba(26,31,38,0)");
-      grad.addColorStop(1, "rgba(26,31,38,1)");
+      const bgChannels = hexToRgbChannels(palette.bg);
+      grad.addColorStop(0, `rgba(${bgChannels},0)`);
+      grad.addColorStop(1, `rgba(${bgChannels},1)`);
       ctx.fillStyle = grad;
       ctx.fillRect(0, 0, w, h);
 
       // Apron/terminal/hangar footprints, outlined only (not filled) so the
       // satellite imagery underneath still reads through.
-      ctx.strokeStyle = DIAGRAM_COLOR;
+      ctx.strokeStyle = palette.diagram;
       ctx.globalAlpha = 0.5;
       ctx.lineWidth = 1;
       for (const area of airport.areas) {
@@ -295,7 +292,7 @@ export function TowerCabView({ airport, aircraft, selectedCallsign, onSelectAirc
         if (!a || !b) continue;
         const { sx: ax, sy: ay } = toScreen(a.x, a.y);
         const { sx: bx, sy: by } = toScreen(b.x, b.y);
-        ctx.strokeStyle = e.kind === "runway" ? RUNWAY_COLOR : DIAGRAM_COLOR;
+        ctx.strokeStyle = e.kind === "runway" ? palette.runwayStroke : palette.diagram;
         ctx.globalAlpha = e.kind === "runway" ? 0.95 : 0.75;
         ctx.lineWidth = e.kind === "runway" ? 3 : 1.6;
         ctx.beginPath();
@@ -310,7 +307,7 @@ export function TowerCabView({ airport, aircraft, selectedCallsign, onSelectAirc
       const showGateLabels = getShowGateLabels();
       const datablockMode = getDatablockMode();
 
-      ctx.fillStyle = DIAGRAM_COLOR;
+      ctx.fillStyle = palette.diagram;
       for (const p of airport.parking_positions) {
         const n = nodeById.get(p.node);
         if (!n) continue;
@@ -325,7 +322,7 @@ export function TowerCabView({ airport, aircraft, selectedCallsign, onSelectAirc
         ctx.shadowBlur = 2;
 
         if (showRunwayLabels) {
-          ctx.fillStyle = "#fff6e5";
+          ctx.fillStyle = palette.runwayLabel;
           ctx.font = "bold 11px monospace";
           for (const r of airport.runways) {
             const start = nodeById.get(r.node_start);
@@ -342,7 +339,7 @@ export function TowerCabView({ airport, aircraft, selectedCallsign, onSelectAirc
         }
 
         if (showTaxiwayLabels) {
-          ctx.fillStyle = DIAGRAM_COLOR;
+          ctx.fillStyle = palette.taxiwayLabel;
           ctx.font = "bold 10px monospace";
           for (const t of taxiwayLabels) {
             const { sx, sy } = toScreen(t.x, t.y);
@@ -351,7 +348,7 @@ export function TowerCabView({ airport, aircraft, selectedCallsign, onSelectAirc
         }
 
         if (showGateLabels) {
-          ctx.fillStyle = "#fff6e5";
+          ctx.fillStyle = palette.gateLabel;
           ctx.font = "9px monospace";
           for (const p of airport.parking_positions) {
             if (!p.ref) continue;
@@ -368,7 +365,11 @@ export function TowerCabView({ airport, aircraft, selectedCallsign, onSelectAirc
         const { sx, sy } = toScreen(ac.x, ac.y);
         const isSelected = ac.callsign === selectedRef.current;
         const isArrival = ac.state === "LandingRollout" || ac.state === "OnApproach";
-        const color = isSelected ? "#ffdf5e" : isArrival ? "#7fc8ff" : "#ffffff";
+        const color = isSelected
+          ? palette.aircraftSelected
+          : isArrival
+            ? palette.aircraftArrival
+            : palette.aircraftDefault;
 
         ctx.save();
         ctx.translate(sx, sy);
@@ -381,7 +382,7 @@ export function TowerCabView({ airport, aircraft, selectedCallsign, onSelectAirc
         ctx.restore();
 
         if (ac.is_speaking) {
-          ctx.strokeStyle = isSelected ? "#ffdf5e" : "#ffffff";
+          ctx.strokeStyle = isSelected ? palette.aircraftSelected : palette.speakingRingDefault;
           ctx.lineWidth = 1.5;
           ctx.beginPath();
           ctx.arc(sx, sy, 11, 0, Math.PI * 2);

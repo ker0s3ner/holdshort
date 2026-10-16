@@ -474,8 +474,8 @@ function ThemesTab() {
         {THEME_INFO.find((t) => t.id === theme)?.note}
       </p>
       <p className="muted settings-note">
-        Themes recolor the app's own chrome - top bar, panels, buttons. The SMR and Tower Cab
-        surface displays have their own fixed rendering colors for now and aren't themed yet.
+        Themes recolor the app's own chrome - top bar, panels, buttons - and the SMR/Tower Cab
+        surface displays, down to the runway, taxiway, and aircraft colors.
       </p>
     </div>
   );
