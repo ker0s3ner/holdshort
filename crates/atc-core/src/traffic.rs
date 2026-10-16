@@ -50,7 +50,21 @@ const TURKEY_AIRPORTS: &[&str] = &["LTFM", "EGLL", "EDDF", "OMDB"];
 const UAE_AIRPORTS: &[&str] = &["OMDB", "LTFM", "EGLL", "EDDF"];
 const JAPAN_AIRPORTS: &[&str] = &["RJTT", "RJAA", "RJBB", "RJCC"];
 
-const AIRCRAFT_TYPES: &[&str] = &["A320", "B738", "E175", "CRJ9", "A319", "B739"];
+/// (ICAO aircraft type, ICAO wake turbulence category letter if "heavy" or
+/// "super" - real callsigns append this on the radio, e.g. "United 2356
+/// heavy", so it's part of the flight's identity, not just cosmetic.
+const AIRCRAFT_TYPES: &[(&str, Option<char>)] = &[
+    ("A320", None),
+    ("B738", None),
+    ("E175", None),
+    ("CRJ9", None),
+    ("A319", None),
+    ("B739", None),
+    ("B772", Some('H')),
+    ("B789", Some('H')),
+    ("A333", Some('H')),
+    ("A359", Some('H')),
+];
 
 /// Real airlines fly where their network actually goes - American doesn't
 /// serve Kaunas and Ryanair doesn't serve JFK - so the airline (and the
@@ -149,8 +163,25 @@ impl TrafficGenerator {
 
         let (airline, _name) = self.airlines.choose(&mut rng).unwrap();
         let flight_no: u32 = rng.gen_range(100..9999);
-        let callsign = format!("{airline}{flight_no}");
-        let ac_type = AIRCRAFT_TYPES.choose(&mut rng).unwrap();
+        // Widebodies are the exception, not the rule, even at a busy hub -
+        // most movements on any given day are narrowbody.
+        let (ac_type, wake_category) = if rng.gen_bool(0.15) {
+            *AIRCRAFT_TYPES
+                .iter()
+                .filter(|(_, cat)| cat.is_some())
+                .choose(&mut rng)
+                .unwrap()
+        } else {
+            *AIRCRAFT_TYPES
+                .iter()
+                .filter(|(_, cat)| cat.is_none())
+                .choose(&mut rng)
+                .unwrap()
+        };
+        let callsign = match wake_category {
+            Some(c) => format!("{airline}{flight_no}{c}"),
+            None => format!("{airline}{flight_no}"),
+        };
         let other_airport = self
             .other_airports
             .iter()

@@ -106,15 +106,26 @@ function spellIdentifier(token: string): string {
   return parts.join(" ");
 }
 
-/** A callsign like "AAL2388" becomes "American two three eight eight";
- * an unrecognized prefix (GA-style registrations etc.) gets spelled out
+/** A trailing single letter on a flight-number callsign is the ICAO wake
+ * turbulence category, not a letter to spell out - "H" means "heavy" and
+ * "J" means "super", said as that word, never "hotel"/"juliett". */
+const WEIGHT_CATEGORY: Record<string, string> = { H: "heavy", J: "super" };
+
+/** A callsign like "AAL2388" becomes "American two three eight eight",
+ * and "AAL2356H" becomes "American two three five six heavy". An
+ * unrecognized prefix (GA-style registrations etc.) gets spelled out
  * phonetically instead of silently mispronounced. */
 export function spellCallsign(callsign: string): string {
-  const match = callsign.match(/^([A-Z]{3})(\d+)$/);
+  const match = callsign.match(/^([A-Z]{3})(\d+)([A-Z]?)$/);
   if (match) {
-    const [, prefix, digits] = match;
+    const [, prefix, digits, suffix] = match;
     const airline = AIRLINES[prefix];
-    if (airline) return `${airline} ${spellDigits(digits)}`;
+    if (airline) {
+      const base = `${airline} ${spellDigits(digits)}`;
+      if (!suffix) return base;
+      const weightWord = WEIGHT_CATEGORY[suffix];
+      return weightWord ? `${base} ${weightWord}` : `${base} ${spellLetters(suffix)}`;
+    }
   }
   return spellIdentifier(callsign);
 }
