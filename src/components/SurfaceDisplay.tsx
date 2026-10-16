@@ -1,6 +1,11 @@
 import { useEffect, useRef } from "react";
 import type { AirportData, AircraftSnapshot } from "../types";
-import { getDatablockMode, getShowLabels } from "../displaySettings";
+import {
+  getDatablockMode,
+  getShowGateLabels,
+  getShowRunwayLabels,
+  getShowTaxiwayLabels,
+} from "../displaySettings";
 
 interface Props {
   airport: AirportData;
@@ -213,7 +218,9 @@ export function SurfaceDisplay({ airport, aircraft, selectedCallsign, onSelectAi
         ctx.setLineDash([]);
       }
 
-      const showLabels = getShowLabels();
+      const showRunwayLabels = getShowRunwayLabels();
+      const showTaxiwayLabels = getShowTaxiwayLabels();
+      const showGateLabels = getShowGateLabels();
       const datablockMode = getDatablockMode();
 
       ctx.fillStyle = "#cfe8d8";
@@ -226,7 +233,7 @@ export function SurfaceDisplay({ airport, aircraft, selectedCallsign, onSelectAi
         ctx.fill();
       }
 
-      if (showLabels) {
+      if (showRunwayLabels) {
         ctx.fillStyle = "#eafff4";
         ctx.font = "bold 11px monospace";
         for (const r of airport.runways) {
@@ -241,14 +248,18 @@ export function SurfaceDisplay({ airport, aircraft, selectedCallsign, onSelectAi
             ctx.fillText(r.ends[1], sx + 6, sy);
           }
         }
+      }
 
+      if (showTaxiwayLabels) {
         ctx.fillStyle = "#ffd866";
         ctx.font = "bold 10px monospace";
         for (const t of taxiwayLabels) {
           const { sx, sy } = toScreen(t.x, t.y);
           ctx.fillText(t.ref, sx - 4, sy - 4);
         }
+      }
 
+      if (showGateLabels) {
         ctx.fillStyle = "#cfe8d8";
         ctx.font = "9px monospace";
         for (const p of airport.parking_positions) {

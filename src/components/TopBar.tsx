@@ -4,9 +4,13 @@ import type { AircraftSnapshot, AirportData, AirportSummary, ControllerRole } fr
 import { frequencyFor } from "../frequencies";
 import {
   getDatablockMode,
-  getShowLabels,
+  getShowGateLabels,
+  getShowRunwayLabels,
+  getShowTaxiwayLabels,
   setDatablockMode,
-  setShowLabels,
+  setShowGateLabels,
+  setShowRunwayLabels,
+  setShowTaxiwayLabels,
   type DatablockMode,
 } from "../displaySettings";
 import { getAtisLetter } from "../atisSettings";
@@ -64,7 +68,9 @@ export function TopBar({
 }: Props) {
   const [metar, setMetar] = useState<string | null>(null);
   const [displayOpen, setDisplayOpen] = useState(false);
-  const [showLabels, setShowLabelsState] = useState(getShowLabels());
+  const [showRunwayLabels, setShowRunwayLabelsState] = useState(getShowRunwayLabels());
+  const [showTaxiwayLabels, setShowTaxiwayLabelsState] = useState(getShowTaxiwayLabels());
+  const [showGateLabels, setShowGateLabelsState] = useState(getShowGateLabels());
   const [datablockMode, setDatablockModeState] = useState<DatablockMode>(getDatablockMode());
   const [runwayOpen, setRunwayOpen] = useState(false);
   const [activeRunway, setActiveRunway] = useState(() => {
@@ -137,13 +143,35 @@ export function TopBar({
                 <label className="tb-menu-item">
                   <input
                     type="checkbox"
-                    checked={showLabels}
+                    checked={showRunwayLabels}
                     onChange={(e) => {
-                      setShowLabelsState(e.target.checked);
-                      setShowLabels(e.target.checked);
+                      setShowRunwayLabelsState(e.target.checked);
+                      setShowRunwayLabels(e.target.checked);
                     }}
                   />
-                  Surface labels (runway/taxiway/gate)
+                  Runway numbers
+                </label>
+                <label className="tb-menu-item">
+                  <input
+                    type="checkbox"
+                    checked={showTaxiwayLabels}
+                    onChange={(e) => {
+                      setShowTaxiwayLabelsState(e.target.checked);
+                      setShowTaxiwayLabels(e.target.checked);
+                    }}
+                  />
+                  Taxiway letters
+                </label>
+                <label className="tb-menu-item">
+                  <input
+                    type="checkbox"
+                    checked={showGateLabels}
+                    onChange={(e) => {
+                      setShowGateLabelsState(e.target.checked);
+                      setShowGateLabels(e.target.checked);
+                    }}
+                  />
+                  Gate numbers
                 </label>
                 <div className="tb-menu-item">
                   <span>Datablocks</span>

@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import type { AircraftSnapshot } from "../types";
+import { STATE_LABELS } from "../aircraftState";
 
 interface Props {
   aircraft: AircraftSnapshot[];
@@ -45,8 +46,14 @@ export function DepArrWindow({ aircraft, onClose, onSelect }: Props) {
           {departures.length === 0 && <div className="muted">None</div>}
           {departures.map((a) => (
             <button key={a.callsign} className="dep-arr-row" onClick={() => onSelect(a.callsign)}>
-              <span className="callsign">{a.callsign}</span>
-              <span>{a.destination}</span>
+              <span className="dep-arr-row-main">
+                <span className="callsign">{a.callsign}</span>
+                <span>{a.destination}</span>
+              </span>
+              <span className="dep-arr-row-detail">
+                {a.aircraft_type} · gate {a.assigned_gate || "—"} · rwy{" "}
+                {a.assigned_runway || "—"} · {STATE_LABELS[a.state] ?? a.state}
+              </span>
             </button>
           ))}
         </div>
@@ -55,8 +62,14 @@ export function DepArrWindow({ aircraft, onClose, onSelect }: Props) {
           {arrivals.length === 0 && <div className="muted">None</div>}
           {arrivals.map((a) => (
             <button key={a.callsign} className="dep-arr-row" onClick={() => onSelect(a.callsign)}>
-              <span className="callsign">{a.callsign}</span>
-              <span>{a.origin}</span>
+              <span className="dep-arr-row-main">
+                <span className="callsign">{a.callsign}</span>
+                <span>{a.origin}</span>
+              </span>
+              <span className="dep-arr-row-detail">
+                {a.aircraft_type} · gate {a.assigned_gate || "—"} · rwy{" "}
+                {a.assigned_runway || "—"} · {STATE_LABELS[a.state] ?? a.state}
+              </span>
             </button>
           ))}
         </div>

@@ -6,6 +6,7 @@ import { getPttKey, isSttEnabled } from "../voiceSettings";
 import { spellCallsign } from "../speech";
 import { speakOnChannel } from "../radio";
 import { parseClearance } from "../clearanceParser";
+import { STATE_LABELS } from "../aircraftState";
 
 interface Props {
   airport: AirportData;
@@ -221,6 +222,10 @@ export function ClearancePanel({
             {selected.callsign} · {selected.aircraft_type} · gate {selected.assigned_gate} · rwy{" "}
             {selected.assigned_runway} ·{" "}
             {selected.rule === "Departure" ? `dest ${selected.destination}` : `from ${selected.origin}`}
+          </div>
+          <div className="detail-line detail-line-sub">
+            {selected.rule === "Departure" ? "DEP" : "ARR"} · {STATE_LABELS[selected.state]} ·{" "}
+            {Math.round(selected.ground_speed_kt)} kt
           </div>
           <div className="clearance-buttons">
             {buttons.map((b) => (

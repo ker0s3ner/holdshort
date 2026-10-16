@@ -1,6 +1,11 @@
 import { useEffect, useRef } from "react";
 import type { AirportData, AircraftSnapshot } from "../types";
-import { getDatablockMode, getShowLabels } from "../displaySettings";
+import {
+  getDatablockMode,
+  getShowGateLabels,
+  getShowRunwayLabels,
+  getShowTaxiwayLabels,
+} from "../displaySettings";
 
 interface Props {
   airport: AirportData;
@@ -300,7 +305,9 @@ export function TowerCabView({ airport, aircraft, selectedCallsign, onSelectAirc
       }
       ctx.globalAlpha = 1;
 
-      const showLabels = getShowLabels();
+      const showRunwayLabels = getShowRunwayLabels();
+      const showTaxiwayLabels = getShowTaxiwayLabels();
+      const showGateLabels = getShowGateLabels();
       const datablockMode = getDatablockMode();
 
       ctx.fillStyle = DIAGRAM_COLOR;
@@ -313,39 +320,46 @@ export function TowerCabView({ airport, aircraft, selectedCallsign, onSelectAirc
         ctx.fill();
       }
 
-      if (showLabels) {
-        ctx.fillStyle = "#fff6e5";
-        ctx.font = "bold 11px monospace";
+      if (showRunwayLabels || showTaxiwayLabels || showGateLabels) {
         ctx.shadowColor = "rgba(0,0,0,0.9)";
         ctx.shadowBlur = 2;
-        for (const r of airport.runways) {
-          const start = nodeById.get(r.node_start);
-          const end = nodeById.get(r.node_end);
-          if (start && r.ends[0]) {
-            const { sx, sy } = toScreen(start.x, start.y);
-            ctx.fillText(r.ends[0], sx + 6, sy);
-          }
-          if (end && r.ends[1]) {
-            const { sx, sy } = toScreen(end.x, end.y);
-            ctx.fillText(r.ends[1], sx + 6, sy);
+
+        if (showRunwayLabels) {
+          ctx.fillStyle = "#fff6e5";
+          ctx.font = "bold 11px monospace";
+          for (const r of airport.runways) {
+            const start = nodeById.get(r.node_start);
+            const end = nodeById.get(r.node_end);
+            if (start && r.ends[0]) {
+              const { sx, sy } = toScreen(start.x, start.y);
+              ctx.fillText(r.ends[0], sx + 6, sy);
+            }
+            if (end && r.ends[1]) {
+              const { sx, sy } = toScreen(end.x, end.y);
+              ctx.fillText(r.ends[1], sx + 6, sy);
+            }
           }
         }
 
-        ctx.fillStyle = DIAGRAM_COLOR;
-        ctx.font = "bold 10px monospace";
-        for (const t of taxiwayLabels) {
-          const { sx, sy } = toScreen(t.x, t.y);
-          ctx.fillText(t.ref, sx - 4, sy - 4);
+        if (showTaxiwayLabels) {
+          ctx.fillStyle = DIAGRAM_COLOR;
+          ctx.font = "bold 10px monospace";
+          for (const t of taxiwayLabels) {
+            const { sx, sy } = toScreen(t.x, t.y);
+            ctx.fillText(t.ref, sx - 4, sy - 4);
+          }
         }
 
-        ctx.fillStyle = "#fff6e5";
-        ctx.font = "9px monospace";
-        for (const p of airport.parking_positions) {
-          if (!p.ref) continue;
-          const n = nodeById.get(p.node);
-          if (!n) continue;
-          const { sx, sy } = toScreen(n.x, n.y);
-          ctx.fillText(p.ref, sx + 4, sy + 3);
+        if (showGateLabels) {
+          ctx.fillStyle = "#fff6e5";
+          ctx.font = "9px monospace";
+          for (const p of airport.parking_positions) {
+            if (!p.ref) continue;
+            const n = nodeById.get(p.node);
+            if (!n) continue;
+            const { sx, sy } = toScreen(n.x, n.y);
+            ctx.fillText(p.ref, sx + 4, sy + 3);
+          }
         }
         ctx.shadowBlur = 0;
       }
