@@ -25,16 +25,20 @@
 <main>
   <h1>Plugins</h1>
   <p class="lede">
-    Plugins are extras you switch on from Settings → Plugins, built around the same
-    on/off pattern a future community plugin system would use.
+    Plugins run in a sandboxed iframe with a live, read-only feed of traffic and
+    airport data — real third-party code, not a built-in extra pretending to be one.
   </p>
 
   <div class="note">
-    There's no sandboxed runtime for loading third-party plugin code yet — safely
-    running code someone else wrote is a real engineering project of its own. So for
-    now, "plugins" means a small set of built-in extras rather than an "install from
-    URL" box that doesn't actually do anything. A real third-party plugin SDK is on
-    the <a href="roadmap.html">roadmap</a>.
+    Each plugin is a single static HTML file, loaded in an
+    <code>&lt;iframe sandbox="allow-scripts"&gt;</code> with no <code>allow-same-origin</code> —
+    it gets its own opaque origin and genuinely cannot read the app's localStorage, DOM,
+    or cookies. The host posts a message roughly once a second with the controlled
+    airport's position and every aircraft's callsign, type, state, and real-world
+    origin/destination coordinates; the plugin does whatever it wants with that. It's
+    read-only for now — a plugin can't issue clearances or otherwise write back into the
+    sim yet. That's real future work, not a corner cut: safely letting untrusted code
+    control the simulation is its own design problem.
   </div>
 
   <h2>Available now</h2>
@@ -46,9 +50,9 @@
           A VatSpy-style world map showing where each aircraft in your current
           session is really flying to or from. It only knows about traffic in your
           own local sim — there's no shared network connecting separate Holdshort
-          sessions together yet, so it can't show other players. That's the kind of
-          thing a future community plugin (or built-in multiplayer, see the
-          <a href="roadmap.html">roadmap</a>) could change.
+          sessions together yet, so it can't show other players. The reference
+          implementation for the plugin SDK — its source is plain HTML/JS, no build
+          step, a good starting point for your own.
         </p>
       </div>
       <span class="status">Built-in</span>
@@ -57,10 +61,19 @@
 
   <h2>Building your own</h2>
   <p>
-    There isn't a public plugin API to build against yet. If you've got an idea for
-    one — a shared network layer, alternate traffic sources, custom airport packs —
-    open a discussion on <a href="https://github.com/ker0s3ner/holdshort/issues">GitHub</a>.
-    What ships first here will likely be shaped by what people actually ask for.
+    A plugin is one HTML file. Listen for <code>message</code> events, check for
+    <code>e.data.type === "holdshort:tick"</code>, and render whatever you want from
+    <code>homeAirport</code>, <code>aircraft</code>, and <code>theme</code> — then post
+    <code>{ type: "holdshort:ready" }</code> to <code>window.parent</code> once your
+    listener is attached so the host knows to start sending data. The full protocol is
+    documented in
+    <a href="https://github.com/ker0s3ner/holdshort/blob/main/src/pluginProtocol.ts">src/pluginProtocol.ts</a>;
+    the World Traffic Map plugin's source
+    (<a href="https://github.com/ker0s3ner/holdshort/blob/main/public/plugins/worldmap/index.html">public/plugins/worldmap/index.html</a>)
+    is a complete working example. There's no install-from-URL flow yet — for now,
+    shipping a plugin means it lives in the app's own <code>public/plugins/</code>
+    directory — open a PR or an issue on
+    <a href="https://github.com/ker0s3ner/holdshort/issues">GitHub</a>.
   </p>
 </main>
 

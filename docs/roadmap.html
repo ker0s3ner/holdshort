@@ -32,31 +32,39 @@
 
   <div class="roadmap-cols">
     <div class="roadmap-col">
-      <span class="tag now">Now</span>
+      <span class="tag now">Shipped recently</span>
       <ul>
-        <li>More accurate speech recognition (model ladder, ATC vocabulary biasing)</li>
-        <li>CRC / EuroScope visual themes for the app chrome</li>
-        <li>Cleaner Settings (Voice, Themes, Plugins as separate tabs)</li>
-        <li>Visually distinguishing runways from taxiways across every view</li>
+        <li>Real position separation — ground can't issue a takeoff clearance just
+          because the button exists; the backend checks who's actually responsible
+          for an aircraft in its current phase</li>
+        <li>Multi-runway Tower: several runway ends active at once, each
+          independently serving departures, arrivals, or both</li>
+        <li>CRC / EuroScope themes, now wired into the SMR and Tower Cab canvases
+          themselves (not just the app chrome)</li>
+        <li>A real plugin SDK — a sandboxed iframe with a live read-only telemetry
+          feed, not a built-in toggle pretending to be a plugin. See
+          <a href="plugins.html">Plugins</a></li>
+        <li>Voice commands auto-select the aircraft named in the transmission,
+          the way a real controller's clearance always includes the callsign</li>
       </ul>
     </div>
     <div class="roadmap-col">
       <span class="tag next">Next</span>
       <ul>
         <li>Playable Approach position (currently a read-only preview)</li>
-        <li>A real third-party plugin runtime — sandboxed, not just built-in toggles</li>
+        <li>A write API for plugins — issuing clearances from plugin code, not
+          just reading telemetry (a real sandboxing/trust problem on its own)</li>
         <li>More airports and countries, prioritized by request</li>
-        <li>Theming extended to the SMR / Tower Cab canvas rendering itself</li>
-        <li>This website: richer plugin directory once there's something to list</li>
+        <li>Richer flight-strip/flight-plan data (squawk, route, remarks)</li>
       </ul>
     </div>
     <div class="roadmap-col">
       <span class="tag later">Later</span>
       <ul>
         <li>Shared multiplayer sessions (a VATSIM-style shared network between
-          separate Holdshort instances) — the built-in World Traffic Map plugin is a
-          preview of what this could look like, but today it only sees your own
-          local session</li>
+          separate Holdshort instances) — the World Traffic Map plugin is a preview
+          of what this could look like, but today it only sees your own local
+          session</li>
         <li>Windows build</li>
         <li>Full Control/Departure position, beyond Ramp/Ground/Tower</li>
         <li>Paid Apple Developer signing, once the project can justify the cost</li>

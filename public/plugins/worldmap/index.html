@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>World Traffic Map</title>
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: #05080a;
+    color: #cfe8d8;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    overflow: hidden;
+  }
+  svg {
+    display: block;
+  }
+  .grid {
+    stroke: #1c2b22;
+    stroke-width: 1;
+  }
+  .route {
+    stroke: #577;
+    stroke-width: 1;
+    stroke-dasharray: 3 2;
+  }
+  .pin {
+    fill: #9adbb6;
+  }
+  .label {
+    fill: #cfe8d8;
+    font-size: 9px;
+    font-family: "SF Mono", Menlo, monospace;
+  }
+  .home {
+    fill: #7fffb0;
+  }
+  .home-label {
+    fill: #7fffb0;
+    font-weight: 700;
+  }
+  .empty {
+    position: absolute;
+    bottom: 6px;
+    left: 8px;
+    right: 8px;
+    font-size: 11px;
+    color: #9adbb6;
+    margin: 0;
+  }
+</style>
+</head>
+<body>
+<svg id="map" width="420" height="230"></svg>
+<p class="empty" id="empty" style="display:none">No traffic with a mapped destination right now.</p>
+
+<script>
+  // A VatSpy-inspired world map - not a live global network (Holdshort
+  // sessions aren't connected to each other), but a real view of where
+  // this session's own traffic is actually flying to/from, using each
+  // flight's real origin/destination coordinates handed to this plugin
+  // by the host (see src/pluginProtocol.ts) - this file never needs its
+  // own airport coordinate database.
+  const SVGNS = "http://www.w3.org/2000/svg";
+  const W = 420;
+  const H = 230;
+  const svg = document.getElementById("map");
+  const emptyMsg = document.getElementById("empty");
+
+  function project(lat, lon) {
+    const x = ((lon + 180) / 360) * W;
+    const y = ((90 - lat) / 180) * H;
+    return [x, y];
+  }
+
+  function el(tag, attrs) {
+    const node = document.createElementNS(SVGNS, tag);
+    for (const k in attrs) node.setAttribute(k, attrs[k]);
+    return node;
+  }
+
+  function render(msg) {
+    svg.innerHTML = "";
+    svg.style.background = msg.theme?.bg ?? "#05080a";
+    document.body.style.color = msg.theme?.text ?? "#cfe8d8";
+
+    svg.appendChild(el("rect", { x: 0, y: 0, width: W, height: H, fill: msg.theme?.bg ?? "#05080a" }));
+
+    for (let lon = -180; lon <= 180; lon += 30) {
+      const [x] = project(0, lon);
+      svg.appendChild(el("line", { x1: x, y1: 0, x2: x, y2: H, class: "grid" }));
+    }
+    for (let lat = -60; lat <= 60; lat += 30) {
+      const [, y] = project(lat, 0);
+      svg.appendChild(el("line", { x1: 0, y1: y, x2: W, y2: y, class: "grid" }));
+    }
+
+    const home = project(msg.homeAirport.lat, msg.homeAirport.lon);
+
+    const routes = new Map();
+    for (const ac of msg.aircraft) {
+      if (!ac.otherAirport) continue;
+      const key = ac.otherAirport.icao;
+      const entry = routes.get(key) ?? { ...ac.otherAirport, count: 0 };
+      entry.count += 1;
+      routes.set(key, entry);
+    }
+
+    for (const r of routes.values()) {
+      const [x, y] = project(r.lat, r.lon);
+      svg.appendChild(el("line", { x1: home[0], y1: home[1], x2: x, y2: y, class: "route" }));
+    }
+    for (const r of routes.values()) {
+      const [x, y] = project(r.lat, r.lon);
+      svg.appendChild(el("circle", { cx: x, cy: y, r: 3, class: "pin" }));
+      const label = el("text", { x: x + 5, y: y - 4, class: "label" });
+      label.textContent = r.count > 1 ? `${r.icao} ×${r.count}` : r.icao;
+      svg.appendChild(label);
+    }
+
+    svg.appendChild(el("circle", { cx: home[0], cy: home[1], r: 5, class: "home" }));
+    const homeLabel = el("text", { x: home[0] + 6, y: home[1] - 6, class: "label home-label" });
+    homeLabel.textContent = msg.homeAirport.icao;
+    svg.appendChild(homeLabel);
+
+    emptyMsg.style.display = routes.size === 0 ? "block" : "none";
+  }
+
+  window.addEventListener("message", (e) => {
+    if (e.data?.type === "holdshort:tick") render(e.data);
+  });
+
+  // Tell the host we're ready to receive data - avoids a race where the
+  // host posts before this listener is attached.
+  window.parent.postMessage({ type: "holdshort:ready" }, "*");
+</script>
+</body>
+</html>

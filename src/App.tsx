@@ -6,7 +6,7 @@ import { TowerCabView } from "./components/TowerCabView";
 import { ClearancePanel } from "./components/ClearancePanel";
 import { TopBar } from "./components/TopBar";
 import { DepArrWindow } from "./components/DepArrWindow";
-import { WorldMapWindow } from "./components/WorldMapWindow";
+import { PluginHost } from "./components/PluginHost";
 import { UpdateBanner } from "./components/UpdateBanner";
 import { Launcher } from "./components/Launcher";
 import { SetupWizard } from "./components/SetupWizard";
@@ -18,7 +18,7 @@ import { speakReadback } from "./voice";
 import { isReadbackEnabled } from "./voiceSettings";
 import { enqueuePilotCalls } from "./pilotCalls";
 import { applyStoredTheme } from "./themeSettings";
-import { isPluginEnabled } from "./pluginSettings";
+import { AVAILABLE_PLUGINS, isPluginEnabled } from "./pluginSettings";
 import type { Profile } from "./profiles";
 import type {
   AircraftSnapshot,
@@ -256,7 +256,13 @@ function App() {
         />
       )}
       {worldMapOpen && isPluginEnabled("worldmap") && (
-        <WorldMapWindow airport={airport} aircraft={aircraft} onClose={() => setWorldMapOpen(false)} />
+        <PluginHost
+          title="World Traffic Map"
+          entry={AVAILABLE_PLUGINS.find((p) => p.id === "worldmap")!.entry}
+          airport={airport}
+          aircraft={aircraft}
+          onClose={() => setWorldMapOpen(false)}
+        />
       )}
       <div className="attribution">
         {airport.attribution}
