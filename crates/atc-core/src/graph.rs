@@ -53,6 +53,15 @@ impl TaxiGraph {
         TaxiGraph { nodes, adjacency }
     }
 
+    /// The `kind` of the edge directly connecting `a` to `b`, if adjacent.
+    pub fn edge_kind(&self, a: &str, b: &str) -> Option<&str> {
+        self.adjacency
+            .get(a)?
+            .iter()
+            .find(|e| e.to == b)
+            .map(|e| e.kind.as_str())
+    }
+
     fn heuristic(&self, a: &str, b: &str) -> f64 {
         match (self.nodes.get(a), self.nodes.get(b)) {
             (Some(na), Some(nb)) => ((na.x - nb.x).powi(2) + (na.y - nb.y).powi(2)).sqrt(),

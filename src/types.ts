@@ -64,6 +64,7 @@ export interface AirportData {
 export type AircraftState =
   | "AtGate"
   | "PushingBack"
+  | "ReadyForTaxi"
   | "TaxiingToRunway"
   | "HoldingShort"
   | "LinedUp"

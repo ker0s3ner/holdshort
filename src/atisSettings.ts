@@ -8,6 +8,9 @@ function letterKey(icao: string): string {
 function remarksKey(icao: string): string {
   return `holdshort.atis.${icao}.remarks`;
 }
+function qnhKey(icao: string): string {
+  return `holdshort.atis.${icao}.qnh`;
+}
 
 export function getAtisLetter(icao: string): string {
   try {
@@ -41,6 +44,24 @@ export function getAtisRemarks(icao: string): string {
 export function setAtisRemarks(icao: string, text: string) {
   try {
     localStorage.setItem(remarksKey(icao), text);
+  } catch {
+    // Storage unavailable - setting just won't persist.
+  }
+}
+
+/** Empty string means "not manually overridden - use whatever the current
+ * METAR's altimeter group says". */
+export function getAtisQnh(icao: string): string {
+  try {
+    return localStorage.getItem(qnhKey(icao)) || "";
+  } catch {
+    return "";
+  }
+}
+
+export function setAtisQnh(icao: string, qnh: string) {
+  try {
+    localStorage.setItem(qnhKey(icao), qnh);
   } catch {
     // Storage unavailable - setting just won't persist.
   }

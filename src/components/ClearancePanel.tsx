@@ -52,7 +52,7 @@ const ADJACENT_POSITIONS: Record<ControllerRole, (keyof typeof BUTTONS_BY_ROLE)[
   approach: ["tower"],
 };
 
-const HELD_STATES = new Set(["HoldingShort", "LinedUp"]);
+const HELD_STATES = new Set(["ReadyForTaxi", "HoldingShort", "LinedUp"]);
 
 export function ClearancePanel({
   airport,
@@ -195,7 +195,13 @@ export function ClearancePanel({
           >
             <span className="callsign">{ac.callsign}</span>
             <span className="type">{ac.aircraft_type}</span>
-            <span className="state">{ac.state === "LinedUp" ? "lined up" : "holding short"}</span>
+            <span className="state">
+              {ac.state === "LinedUp"
+                ? "lined up"
+                : ac.state === "ReadyForTaxi"
+                  ? "ready to taxi"
+                  : "holding short"}
+            </span>
           </button>
         ))}
       </div>

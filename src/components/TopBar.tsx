@@ -167,22 +167,26 @@ export function TopBar({
               🛫 {activeRunway ? `${activeRunway.ref} (${activeRunway.end})` : "no rwy"}
             </button>
             {runwayOpen && (
-              <div className="tb-menu-panel">
+              <div className="tb-menu-panel runway-toggle-panel">
                 {airport.runways.map((r) =>
-                  r.ends.map((end) => (
-                    <button
-                      key={`${r.ref}-${end}`}
-                      className="tb-menu-item runway-option"
-                      onClick={() => {
-                        invoke("set_active_runway", { rwyRef: r.ref, departureEnd: end })
-                          .then(() => setActiveRunway({ ref: r.ref, end }))
-                          .catch(() => {});
-                        setRunwayOpen(false);
-                      }}
-                    >
-                      Runway {r.ref} - using end {end}
-                    </button>
-                  ))
+                  r.ends.map((end) => {
+                    const isActive = activeRunway?.ref === r.ref && activeRunway?.end === end;
+                    return (
+                      <button
+                        key={`${r.ref}-${end}`}
+                        className={isActive ? "runway-toggle active" : "runway-toggle"}
+                        title={`Runway ${r.ref}, departing ${end}`}
+                        onClick={() => {
+                          invoke("set_active_runway", { rwyRef: r.ref, departureEnd: end })
+                            .then(() => setActiveRunway({ ref: r.ref, end }))
+                            .catch(() => {});
+                          setRunwayOpen(false);
+                        }}
+                      >
+                        {end}
+                      </button>
+                    );
+                  })
                 )}
               </div>
             )}
@@ -228,7 +232,14 @@ export function TopBar({
           onClose={() => setStationSelectOpen(false)}
         />
       )}
-      {atisOpen && <AtisModal icao={airport.icao} onClose={() => setAtisOpen(false)} />}
+      {atisOpen && (
+        <AtisModal
+          icao={airport.icao}
+          metar={metar}
+          activeRunway={activeRunway}
+          onClose={() => setAtisOpen(false)}
+        />
+      )}
     </>
   );
 }

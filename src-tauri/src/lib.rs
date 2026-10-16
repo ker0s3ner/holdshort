@@ -610,10 +610,38 @@ async fn transcribe_audio(
         ));
     }
     let text = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    if text.is_empty() {
+    if text.is_empty() || is_whisper_hallucination(&text) {
         return Err("heard nothing".to_string());
     }
     Ok(text)
+}
+
+/// whisper.cpp is trained partly on captioned video, so on silence or pure
+/// background noise it doesn't reliably output nothing - it tends to
+/// confabulate one of a small set of stock captioning phrases instead
+/// (e.g. "Thanks for watching!", "Subscribe to my channel", "Closed
+/// captioning by..."). None of those are real ATC phraseology, so treat
+/// them the same as empty output rather than showing the user a bogus
+/// "heard" transcript and a confusing "didn't recognize a clearance" error.
+fn is_whisper_hallucination(text: &str) -> bool {
+    let lower = text.to_lowercase();
+    const PATTERNS: &[&str] = &[
+        "thanks for watching",
+        "thank you for watching",
+        "please subscribe",
+        "subscribe to",
+        "like and subscribe",
+        "closed captioning",
+        "captioned by",
+        "transcribed by",
+        "subtitles by",
+        "amara.org",
+        "[blank_audio]",
+        "[silence]",
+        "(silence)",
+        "you're welcome",
+    ];
+    PATTERNS.iter().any(|p| lower.contains(p))
 }
 
 fn build_snapshot(sim: &Simulation) -> SimTick {

@@ -26,6 +26,7 @@ export function StationSelectModal({
 }: Props) {
   const [icao, setIcao] = useState(currentIcao);
   const [role, setRole] = useState<ControllerRole>(currentRole);
+  const [switching, setSwitching] = useState(false);
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -37,40 +38,58 @@ export function StationSelectModal({
           </button>
         </div>
         <div className="modal-content">
-          <label className="field-label">
-            Airport
-            <select value={icao} onChange={(e) => setIcao(e.target.value)}>
-              {installedAirports.map((a) => (
-                <option key={a.icao} value={a.icao}>
-                  {a.icao} - {a.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="field-label">
-            Facility
-            <select value={role} onChange={(e) => setRole(e.target.value as ControllerRole)}>
-              {ROLES.map((r) => (
-                <option key={r} value={r}>
-                  {r.toUpperCase()}
-                </option>
-              ))}
-            </select>
-          </label>
-          <div className="station-select-actions">
-            <button className="setup-skip" onClick={onDisconnect}>
-              Disconnect
-            </button>
-            <button
-              className="setup-primary"
-              onClick={() => {
-                onConnect(icao, role);
-                onClose();
-              }}
-            >
-              Connect
-            </button>
-          </div>
+          {!switching ? (
+            <>
+              <div className="station-current">
+                {currentIcao} — {currentRole.toUpperCase()}
+              </div>
+              <div className="station-select-actions">
+                <button className="setup-skip" onClick={onDisconnect}>
+                  Disconnect
+                </button>
+                <button className="setup-primary" onClick={() => setSwitching(true)}>
+                  Switch Station…
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <label className="field-label">
+                Airport
+                <select value={icao} onChange={(e) => setIcao(e.target.value)}>
+                  {installedAirports.map((a) => (
+                    <option key={a.icao} value={a.icao}>
+                      {a.icao} - {a.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="field-label">
+                Facility
+                <select value={role} onChange={(e) => setRole(e.target.value as ControllerRole)}>
+                  {ROLES.map((r) => (
+                    <option key={r} value={r}>
+                      {r.toUpperCase()}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div className="station-select-actions">
+                <button className="setup-skip" onClick={() => setSwitching(false)}>
+                  Back
+                </button>
+                <button
+                  className="setup-primary"
+                  onClick={() => {
+                    onConnect(icao, role);
+                    onClose();
+                  }}
+                >
+                  Connect
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>

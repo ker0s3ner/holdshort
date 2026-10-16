@@ -22,6 +22,10 @@ const AUTO_PUSHBACK_DELAY_S: f64 = 25.0;
 /// How long an AI tower position takes to clear a holding-short aircraft
 /// for takeoff when the human controller isn't working tower themselves.
 const AUTO_TAKEOFF_DELAY_S: f64 = 20.0;
+/// How long an AI ground position takes to issue a taxi clearance to an
+/// aircraft that has finished pushback and is sitting ready, when the human
+/// controller isn't working ground themselves.
+const AUTO_TAXI_DELAY_S: f64 = 15.0;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct SimEvent {
@@ -89,6 +93,20 @@ impl Simulation {
             .find_path(&gate_node, &runway_node)
             .ok_or_else(|| format!("no taxi route from gate {gate_ref} to runway {runway_ref}"))?;
 
+        // How many legs of the route are still "gate_link" (the short
+        // connector off the gate/apron) - that's the pushback maneuver.
+        // Once the aircraft clears those, it's on the taxiway network and
+        // needs an actual taxi clearance from ground, not just a pushback.
+        let mut pushback_end_index = 0;
+        while pushback_end_index + 1 < route.len()
+            && self
+                .graph
+                .edge_kind(&route[pushback_end_index], &route[pushback_end_index + 1])
+                == Some("gate_link")
+        {
+            pushback_end_index += 1;
+        }
+
         let start = &self.graph.nodes[&gate_node];
         let aircraft = Aircraft {
             callsign: callsign.to_string(),
@@ -105,6 +123,7 @@ impl Simulation {
             },
             route,
             route_index: 0,
+            pushback_end_index,
             x: start.x,
             y: start.y,
             heading_deg: 0.0,
@@ -168,6 +187,7 @@ impl Simulation {
             },
             route,
             route_index: 0,
+            pushback_end_index: 0,
             x: start.x,
             y: start.y,
             heading_deg: 0.0,
@@ -230,9 +250,10 @@ impl Simulation {
             Clearance::TaxiToRunway { via_hold_short } => {
                 if matches!(
                     ac.state,
-                    AircraftState::AtGate | AircraftState::PushingBack
+                    AircraftState::AtGate | AircraftState::PushingBack | AircraftState::ReadyForTaxi
                 ) {
                     ac.state = AircraftState::TaxiingToRunway;
+                    ac.ready_since_s = None;
                     if let Some(node) = via_hold_short {
                         ac.hold_short_node = Some(node);
                     }
@@ -291,7 +312,7 @@ impl Simulation {
 
         for ac in self.aircraft.values_mut() {
             match ac.state {
-                AircraftState::AtGate => continue,
+                AircraftState::AtGate | AircraftState::ReadyForTaxi => continue,
                 AircraftState::Parked => {
                     match ac.parked_at_s {
                         Some(since) if self.clock_s - since >= GATE_DWELL_S => {
@@ -305,8 +326,14 @@ impl Simulation {
                 AircraftState::PushingBack => {
                     ac.ground_speed_kt = PUSHBACK_SPEED_KT;
                     advance_along_route(ac, dt_s, &self.graph);
-                    if ac.cleared_pushback && ac.target_node().is_some() {
-                        ac.state = AircraftState::TaxiingToRunway;
+                    if ac.cleared_pushback && ac.route_index >= ac.pushback_end_index {
+                        ac.ground_speed_kt = 0.0;
+                        ac.state = AircraftState::ReadyForTaxi;
+                        ac.ready_since_s = Some(self.clock_s);
+                        events.push(SimEvent {
+                            callsign: ac.callsign.clone(),
+                            message: "clear of the gate, ready to taxi".to_string(),
+                        });
                     }
                 }
                 AircraftState::TaxiingToRunway | AircraftState::TaxiingToGate => {
@@ -408,6 +435,14 @@ impl Simulation {
                         if let Some(ac) = self.aircraft.get_mut(cs) {
                             ac.cleared_pushback = true;
                             ac.state = AircraftState::PushingBack;
+                            ac.ready_since_s = None;
+                        }
+                    }
+                }
+                AircraftState::ReadyForTaxi if active_role != ControllerRole::Ground => {
+                    if clock - since >= AUTO_TAXI_DELAY_S {
+                        if let Some(ac) = self.aircraft.get_mut(cs) {
+                            ac.state = AircraftState::TaxiingToRunway;
                             ac.ready_since_s = None;
                         }
                     }

@@ -575,18 +575,36 @@ html, body, #root {
   font-size: 11px;
 }
 
-.runway-option {
-  width: 100%;
-  text-align: left;
-  background: none;
-  border: none;
-  color: var(--text);
-  cursor: pointer;
-  padding: 4px 2px;
+.runway-toggle-panel {
+  flex-direction: row;
+  flex-wrap: wrap;
+  min-width: 160px;
+  max-width: 220px;
 }
 
-.runway-option:hover {
+.runway-toggle {
+  min-width: 46px;
+  padding: 8px 6px;
+  background: var(--bg-app);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  cursor: pointer;
+}
+
+.runway-toggle:hover {
+  border-color: var(--border-hover);
   color: var(--accent);
+}
+
+.runway-toggle.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--bg-app);
 }
 
 .station-select-box {
@@ -598,6 +616,14 @@ html, body, #root {
   justify-content: space-between;
   align-items: center;
   margin-top: 6px;
+}
+
+.station-current {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: 0.3px;
+  padding: 8px 0 16px;
 }
 
 .launcher {
@@ -777,6 +803,46 @@ html, body, #root {
   flex-direction: column;
   gap: 10px;
   font-size: 12px;
+}
+
+.atis-box {
+  width: 640px;
+}
+
+.atis-content {
+  flex-direction: row;
+  gap: 18px;
+}
+
+.atis-side {
+  width: 180px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.atis-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.atis-text {
+  flex: 1;
+  margin: 0;
+  background: var(--bg-app);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px;
+  font-family: "SF Mono", Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--accent);
+  white-space: pre-wrap;
+  min-height: 160px;
 }
 
 .settings-row {

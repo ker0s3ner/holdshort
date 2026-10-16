@@ -19,7 +19,9 @@ export function parseClearance(heard: string): Clearance | null {
   if (/\bhold\s*short\b/.test(text) || /\bhold\s*position\b/.test(text) || /\bhold\b/.test(text)) {
     return "HoldPosition";
   }
-  if (/\bpush\s*back\b/.test(text)) return "PushbackApproved";
+  if (/\bpush\s*back\b/.test(text) || /\bpush\s*(and\s*start|&\s*start)?\s*approved\b/.test(text)) {
+    return "PushbackApproved";
+  }
   if (/\btaxi\b/.test(text)) return { TaxiToRunway: { via_hold_short: null } };
 
   return null;

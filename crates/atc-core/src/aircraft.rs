@@ -24,6 +24,7 @@ pub enum ControllerRole {
 pub enum AircraftState {
     AtGate,
     PushingBack,
+    ReadyForTaxi,
     TaxiingToRunway,
     HoldingShort,
     LinedUp,
@@ -55,6 +56,12 @@ pub struct Aircraft {
     /// Node id path the aircraft is currently following on the taxi graph.
     pub route: Vec<String>,
     pub route_index: usize,
+    /// Route index where the gate_link portion of the route ends and the
+    /// taxiway network begins - how far PushingBack actually has to travel
+    /// before the aircraft is clear of the gate and ready for an explicit
+    /// taxi clearance, rather than treating the whole gate-to-runway route
+    /// as "still pushing back".
+    pub pushback_end_index: usize,
     pub x: f64,
     pub y: f64,
     pub heading_deg: f64,
