@@ -200,6 +200,7 @@ export function TopBar({
                   >
                     <option value="all">All aircraft</option>
                     <option value="selected">Selected only</option>
+                    <option value="none">Hidden</option>
                   </select>
                 </div>
               </div>

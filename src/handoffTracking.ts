@@ -11,26 +11,39 @@ export interface HandoffEvent {
  * for an accepted handoff. */
 export const HANDOFF_FLASH_MS = 5000;
 
+/** A handoff recorded on this tick, paired with the aircraft it belongs to
+ * so a caller can coordinate it (e.g. put a message on the net) without
+ * re-diffing the snapshot itself. */
+export interface HandoffChange {
+  callsign: string;
+  event: HandoffEvent;
+}
+
 /** Diffs a fresh snapshot against the previously known owning_role per
  * callsign, recording a HandoffEvent for anything that changed hands -
  * including to an AI-automated position, which is a real handoff in
  * every functional sense, just not to another human. Mutates both maps
  * in place (prevOwner tracks state across ticks, handoffs accumulates
  * recent events and self-prunes anything older than HANDOFF_FLASH_MS)
- * so this can run from a plain ref-based effect without React state. */
+ * so this can run from a plain ref-based effect without React state.
+ * Returns just the handoffs newly recorded on this tick, so a caller can
+ * react to each one exactly once. */
 export function trackHandoffs(
   aircraft: AircraftSnapshot[],
   prevOwner: Map<string, ControllerRole>,
   handoffs: Map<string, HandoffEvent>
-): void {
+): HandoffChange[] {
   const now = Date.now();
   const seen = new Set<string>();
+  const changes: HandoffChange[] = [];
 
   for (const ac of aircraft) {
     seen.add(ac.callsign);
     const prev = prevOwner.get(ac.callsign);
     if (prev && prev !== ac.owning_role) {
-      handoffs.set(ac.callsign, { from: prev, to: ac.owning_role, at: now });
+      const event: HandoffEvent = { from: prev, to: ac.owning_role, at: now };
+      handoffs.set(ac.callsign, event);
+      changes.push({ callsign: ac.callsign, event });
     }
     prevOwner.set(ac.callsign, ac.owning_role);
   }
@@ -44,4 +57,6 @@ export function trackHandoffs(
       handoffs.delete(callsign);
     }
   }
+
+  return changes;
 }

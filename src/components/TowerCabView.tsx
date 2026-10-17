@@ -1,23 +1,18 @@
 import { useEffect, useRef } from "react";
-import type { AirportData, AircraftSnapshot } from "../types";
-import {
-  getDatablockMode,
-  getShowGateLabels,
-  getShowRunwayLabels,
-  getShowTaxiwayLabels,
-} from "../displaySettings";
+import type { AirportData, AircraftSnapshot, ControllerRole } from "../types";
+import { fidelityOf, getQuickLook, getScopeSettings } from "../scopeDisplay";
+import { drawLeaderBlock } from "../scopeDatablock";
 import { getRadarPalette, hexToRgbChannels } from "../radarPalette";
 import { HANDOFF_FLASH_MS, type HandoffEvent } from "../handoffTracking";
 
 interface Props {
   airport: AirportData;
   aircraft: AircraftSnapshot[];
+  role: ControllerRole;
   selectedCallsign: string | null;
   onSelectAircraft: (callsign: string | null) => void;
   recentHandoffs: Map<string, HandoffEvent>;
 }
-
-const VIS_RING_METERS = 18_000; // ~10 statute miles, the default CRC clear-weather ring
 // Real pavement width per edge kind (meters-ish, scaled with zoom) - the
 // same technique SurfaceDisplay uses so Tower Cab reads as an actual
 // shaded airport diagram over the imagery, not a thin accent line.
@@ -159,6 +154,7 @@ function loadBasemapTiles(airport: AirportData, onTileLoaded: () => void): Basem
 export function TowerCabView({
   airport,
   aircraft,
+  role,
   selectedCallsign,
   onSelectAircraft,
   recentHandoffs,
@@ -169,10 +165,14 @@ export function TowerCabView({
   const aircraftRef = useRef<AircraftSnapshot[]>(aircraft);
   const selectedRef = useRef<string | null>(selectedCallsign);
   const handoffsRef = useRef(recentHandoffs);
+  const roleRef = useRef(role);
 
   useEffect(() => {
     aircraftRef.current = aircraft;
   }, [aircraft]);
+  useEffect(() => {
+    roleRef.current = role;
+  }, [role]);
   useEffect(() => {
     selectedRef.current = selectedCallsign;
   }, [selectedCallsign]);
@@ -257,6 +257,7 @@ export function TowerCabView({
       const w = canvas.width / dpr;
       const h = canvas.height / dpr;
       const { panX, panY } = viewRef.current;
+      const S = getScopeSettings();
       ctx.save();
       ctx.scale(dpr, dpr);
       ctx.fillStyle = palette.bg;
@@ -273,7 +274,8 @@ export function TowerCabView({
       // beyond the configured range, same convention CRC's Tower Cab uses.
       const center = toScreen(-panX, -panY);
       const { scale } = viewRef.current;
-      const visRadiusPx = VIS_RING_METERS * scale;
+      // Visibility ring radius is a DCB spinner (VIS) now, default 18km.
+      const visRadiusPx = S.visRingKm * 1000 * scale;
       const grad = ctx.createRadialGradient(
         center.sx,
         center.sy,
@@ -348,10 +350,7 @@ export function TowerCabView({
         ctx.setLineDash([]);
       }
 
-      const showRunwayLabels = getShowRunwayLabels();
-      const showTaxiwayLabels = getShowTaxiwayLabels();
-      const showGateLabels = getShowGateLabels();
-      const datablockMode = getDatablockMode();
+      const { showRunwayLabels, showTaxiwayLabels, showGateLabels, datablockMode } = S;
 
       ctx.fillStyle = palette.diagram;
       for (const p of airport.parking_positions) {
@@ -450,26 +449,27 @@ export function TowerCabView({
           }
         }
 
-        if (datablockMode === "all" || isSelected) {
-          const leaderEnd = { x: sx + 16, y: sy - 16 };
-          ctx.strokeStyle = color;
-          ctx.lineWidth = 1;
-          ctx.beginPath();
-          ctx.moveTo(sx + 5, sy - 5);
-          ctx.lineTo(leaderEnd.x, leaderEnd.y);
-          ctx.stroke();
-
-          ctx.fillStyle = color;
+        // Fidelity-graded leader-line datablock: FDB when this position
+        // owns the track (or is Quick-Looking its owner), PDB when another
+        // position owns it, LDB for tracks outside Tower's domain.
+        const showBlock =
+          datablockMode === "all" || (datablockMode === "selected" && isSelected);
+        if (showBlock) {
+          const fid = fidelityOf(ac, "tower", roleRef.current, getQuickLook());
+          const lines =
+            fid === "FDB"
+              ? [
+                  ac.callsign,
+                  ac.aircraft_type,
+                  destTag(ac.rule === "Departure" ? ac.destination : ac.origin),
+                ]
+              : fid === "PDB"
+                ? [ac.callsign, ac.aircraft_type]
+                : [ac.callsign];
           ctx.font = "10px monospace";
           ctx.shadowColor = "rgba(0,0,0,0.9)";
           ctx.shadowBlur = 2;
-          ctx.fillText(ac.callsign, leaderEnd.x + 2, leaderEnd.y - 2);
-          ctx.fillText(ac.aircraft_type, leaderEnd.x + 2, leaderEnd.y + 9);
-          ctx.fillText(
-            destTag(ac.rule === "Departure" ? ac.destination : ac.origin),
-            leaderEnd.x + 2,
-            leaderEnd.y + 20,
-          );
+          drawLeaderBlock({ ctx, callsign: ac.callsign, sx, sy, color, fidelity: fid, lines });
           ctx.shadowBlur = 0;
         }
       }

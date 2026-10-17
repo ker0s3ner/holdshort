@@ -1,21 +1,20 @@
 import { useEffect, useRef } from "react";
-import type { AirportData, AircraftSnapshot } from "../types";
-import {
-  getDatablockMode,
-  getShowGateLabels,
-  getShowRunwayLabels,
-  getShowTaxiwayLabels,
-} from "../displaySettings";
+import type { AirportData, AircraftSnapshot, ControllerRole } from "../types";
+import { fidelityOf, getQuickLook, getScopeSettings } from "../scopeDisplay";
+import { drawLeaderBlock } from "../scopeDatablock";
 import { getRadarPalette } from "../radarPalette";
 import { HANDOFF_FLASH_MS, type HandoffEvent } from "../handoffTracking";
 
 interface Props {
   airport: AirportData;
   aircraft: AircraftSnapshot[];
+  role: ControllerRole;
   selectedCallsign: string | null;
   onSelectAircraft: (callsign: string | null) => void;
   recentHandoffs: Map<string, HandoffEvent>;
 }
+
+const NM_TO_M = 1852;
 
 const EDGE_WIDTH: Record<string, number> = {
   runway: 15,
@@ -67,6 +66,7 @@ function destTag(icao: string): string {
 export function SurfaceDisplay({
   airport,
   aircraft,
+  role,
   selectedCallsign,
   onSelectAircraft,
   recentHandoffs,
@@ -77,10 +77,14 @@ export function SurfaceDisplay({
   const aircraftRef = useRef<AircraftSnapshot[]>(aircraft);
   const selectedRef = useRef<string | null>(selectedCallsign);
   const handoffsRef = useRef(recentHandoffs);
+  const roleRef = useRef(role);
 
   useEffect(() => {
     aircraftRef.current = aircraft;
   }, [aircraft]);
+  useEffect(() => {
+    roleRef.current = role;
+  }, [role]);
   useEffect(() => {
     selectedRef.current = selectedCallsign;
   }, [selectedCallsign]);
@@ -224,10 +228,24 @@ export function SurfaceDisplay({
         ctx.setLineDash([]);
       }
 
-      const showRunwayLabels = getShowRunwayLabels();
-      const showTaxiwayLabels = getShowTaxiwayLabels();
-      const showGateLabels = getShowGateLabels();
-      const datablockMode = getDatablockMode();
+      const S = getScopeSettings();
+      const { showRunwayLabels, showTaxiwayLabels, showGateLabels, datablockMode } = S;
+
+      // Range rings off the view center every 0.5NM, when enabled - the
+      // surface-display counterpart of Approach's radar rings.
+      if (S.rings) {
+        ctx.strokeStyle = palette.runwayCenterline;
+        ctx.lineWidth = 1;
+        ctx.globalAlpha = 0.25;
+        for (let i = 1; ; i++) {
+          const r = i * 0.5 * NM_TO_M * scale;
+          if (r > Math.min(w, h)) break;
+          ctx.beginPath();
+          ctx.arc(w / 2, h / 2, r, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+        ctx.globalAlpha = 1;
+      }
 
       ctx.fillStyle = palette.parkingDot;
       for (const p of airport.parking_positions) {
@@ -324,29 +342,28 @@ export function SurfaceDisplay({
           }
         }
 
-        // Leader line + stacked 3-line datablock, offset to the upper
-        // right, matching the real surface-radar datablock convention.
-        // "Selected only" mode keeps the glyphs but drops the clutter of a
-        // full datablock for every aircraft on a busy field.
-        if (datablockMode === "all" || isSelected) {
-          const leaderEnd = { x: sx + 16, y: sy - 16 };
-          ctx.strokeStyle = color;
-          ctx.lineWidth = 1;
-          ctx.beginPath();
-          ctx.moveTo(sx + 5, sy - 5);
-          ctx.lineTo(leaderEnd.x, leaderEnd.y);
-          ctx.stroke();
-
-          ctx.fillStyle = color;
+        // Leader line + fidelity-graded datablock: full (FDB) when this
+        // position owns the track - or is Quick-Looking its owner - partial
+        // (PDB) when another position owns it, limited (LDB) when it sits
+        // outside the surface radar's domain entirely. "Selected only"
+        // keeps the glyphs but drops the clutter for every other track.
+        const showBlock =
+          datablockMode === "all" || (datablockMode === "selected" && isSelected);
+        if (showBlock) {
+          const fid = fidelityOf(ac, "smr", roleRef.current, getQuickLook());
+          const lines =
+            fid === "FDB"
+              ? [
+                  ac.callsign,
+                  ac.aircraft_type,
+                  destTag(ac.rule === "Departure" ? ac.destination : ac.origin),
+                ]
+              : fid === "PDB"
+                ? [ac.callsign, ac.aircraft_type]
+                : [ac.callsign];
           ctx.font = "10px monospace";
           ctx.textBaseline = "alphabetic";
-          ctx.fillText(ac.callsign, leaderEnd.x + 2, leaderEnd.y - 2);
-          ctx.fillText(ac.aircraft_type, leaderEnd.x + 2, leaderEnd.y + 9);
-          ctx.fillText(
-            destTag(ac.rule === "Departure" ? ac.destination : ac.origin),
-            leaderEnd.x + 2,
-            leaderEnd.y + 20,
-          );
+          drawLeaderBlock({ ctx, callsign: ac.callsign, sx, sy, color, fidelity: fid, lines });
         }
       }
 

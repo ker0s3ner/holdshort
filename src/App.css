@@ -206,6 +206,256 @@ html, body, #root {
   cursor: grab;
 }
 
+/* ---------- Scope shell: Display Control Bar / canvas / command line ---------- */
+
+.scope-shell {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.scope-canvas {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: block;
+}
+
+/* The canvases fill the shell area regardless of which view is active. */
+.scope-canvas > canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  cursor: grab;
+}
+
+.scope-dcb {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background: var(--bg-topbar);
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+  letter-spacing: 0.03em;
+}
+
+.dcb-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding-right: 7px;
+  margin-right: 3px;
+  border-right: 1px solid var(--border);
+}
+
+.dcb-btn {
+  background: var(--bg-button);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  padding: 2px 7px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.dcb-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.dcb-btn.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--bg-elevated);
+}
+
+.dcb-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.dcb-arrow {
+  padding: 2px 4px;
+}
+
+.dcb-spinner {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.dcb-spinner-val {
+  min-width: 64px;
+  text-align: center;
+  color: var(--text);
+  cursor: ns-resize;
+  user-select: none;
+}
+
+.dcb-spinner-label {
+  color: var(--text-dim);
+}
+
+.dcb-sublabel {
+  color: #ffdf5e;
+  font-size: 10px;
+}
+
+.dcb-menu {
+  position: relative;
+  display: inline-flex;
+}
+
+.dcb-menu-panel {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-hover);
+  border-radius: 5px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  z-index: 70;
+  min-width: 190px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+
+.dcb-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: 1px solid transparent;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 11px;
+  padding: 2px 5px;
+  border-radius: 3px;
+  cursor: pointer;
+  text-align: left;
+}
+
+button.dcb-menu-item:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.dcb-menu-item.active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.dcb-menu-hint {
+  color: var(--text-dim);
+  font-size: 10px;
+}
+
+.dcb-pref-save {
+  display: flex;
+  gap: 4px;
+}
+
+.dcb-pref-input {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  color: var(--text);
+  padding: 2px 5px;
+  font-family: inherit;
+  font-size: 11px;
+}
+
+.dcb-pref-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.dcb-pref-row {
+  display: flex;
+  gap: 4px;
+}
+
+.dcb-pref-name {
+  flex: 1;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dcb-pref-del {
+  padding: 2px 6px;
+}
+
+.dcb-status {
+  margin-left: auto;
+  color: var(--accent);
+  font-size: 11px;
+  min-height: 14px;
+}
+
+.dcb-status.err {
+  color: #ff7b6b;
+}
+
+.scope-cl {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  background: var(--bg-topbar);
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+}
+
+.scope-cl-prompt {
+  color: var(--accent);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.scope-cl-input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 12px;
+  caret-color: var(--accent);
+}
+
+.scope-cl-input::placeholder {
+  color: var(--text-dim);
+}
+
+.scope-cl-status {
+  font-size: 11px;
+  color: var(--accent);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 55%;
+  text-align: right;
+}
+
+.scope-cl-status.err {
+  color: #ff7b6b;
+}
+
 .dep-arr-window {
   position: fixed;
   width: 460px;
@@ -293,6 +543,213 @@ html, body, #root {
 
 .dep-arr-row:hover {
   border-color: var(--accent);
+}
+
+/* --- Controller-to-controller messaging ------------------------------- */
+
+.dcb-msg {
+  position: relative;
+}
+
+.dcb-msg-badge,
+.msg-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 4px;
+  margin-left: 5px;
+  border-radius: 8px;
+  background: #d8453a;
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.msg-window {
+  position: fixed;
+  width: 520px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-hover);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  z-index: 45;
+  display: flex;
+  flex-direction: column;
+}
+
+.msg-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  cursor: grab;
+  user-select: none;
+}
+
+.msg-body {
+  display: flex;
+  height: 340px;
+}
+
+.msg-parties {
+  width: 120px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px;
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+}
+
+.msg-party {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  padding: 5px 8px;
+  font-family: inherit;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  border-radius: 3px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.msg-party:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.msg-party.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--bg-button);
+}
+
+.msg-thread {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.msg-thread-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  overflow-y: auto;
+}
+
+.msg-empty {
+  color: var(--text-dim);
+  font-size: 11px;
+  margin: auto;
+  text-align: center;
+  padding: 0 24px;
+  line-height: 1.5;
+}
+
+.msg-bubble {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 82%;
+  padding: 5px 9px;
+  border-radius: 7px;
+  font-size: 12px;
+}
+
+.msg-bubble.out {
+  align-self: flex-end;
+  background: var(--bg-button);
+  border: 1px solid var(--border-hover);
+}
+
+.msg-bubble.in {
+  align-self: flex-start;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+}
+
+.msg-bubble-from {
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+}
+
+.msg-bubble-text {
+  color: var(--text);
+  word-break: break-word;
+}
+
+.msg-composer {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 9px;
+  border-top: 1px solid var(--border);
+}
+
+.msg-composer-to {
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.msg-composer-input {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 12px;
+  padding: 4px 7px;
+  caret-color: var(--accent);
+}
+
+.msg-composer-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.msg-composer-input::placeholder {
+  color: var(--text-dim);
+}
+
+.msg-send {
+  background: var(--bg-button);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  padding: 4px 11px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.msg-send:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.msg-send:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 
 .metar-line {

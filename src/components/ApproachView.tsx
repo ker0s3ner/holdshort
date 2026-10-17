@@ -1,11 +1,14 @@
 import { useEffect, useRef } from "react";
-import type { AirportData, AircraftSnapshot } from "../types";
+import type { AirportData, AircraftSnapshot, ControllerRole } from "../types";
+import { fidelityOf, getQuickLook, getScopeSettings } from "../scopeDisplay";
+import { drawLeaderBlock } from "../scopeDatablock";
 import { getRadarPalette } from "../radarPalette";
 import { HANDOFF_FLASH_MS, type HandoffEvent } from "../handoffTracking";
 
 interface Props {
   airport: AirportData;
   aircraft: AircraftSnapshot[];
+  role: ControllerRole;
   selectedCallsign: string | null;
   onSelectAircraft: (callsign: string | null) => void;
   recentHandoffs: Map<string, HandoffEvent>;
@@ -13,7 +16,18 @@ interface Props {
 
 const NM_TO_M = 1852.0;
 const RING_SPACING_NM = 5;
-const RING_COUNT = 6; // out to 30nm
+const RING_COUNT = 6; // out to 30nm with the default FIT range
+
+/** Ring spacing that fits a chosen range: as many rings as stay readable
+ * (at least 3), stepping through the real scope's 0.5/1/2/5/10/20NM
+ * increments. */
+function pickRingStep(rangeNm: number): number {
+  const steps = [0.5, 1, 2, 5, 10, 20];
+  for (let i = steps.length - 1; i >= 0; i--) {
+    if (rangeNm / steps[i] >= 3) return steps[i];
+  }
+  return steps[0];
+}
 
 /** Small plane blip, nose pointing up - simpler than the surface glyph
  * since at radar scale a detailed silhouette doesn't read anyway. */
@@ -34,20 +48,25 @@ function drawBlip(ctx: CanvasRenderingContext2D) {
 export function ApproachView({
   airport,
   aircraft,
+  role,
   selectedCallsign,
   onSelectAircraft,
   recentHandoffs,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const viewRef = useRef({ scale: 0.004, panX: 0, panY: 0 });
+  const viewRef = useRef({ scale: 0.004, panX: 0, panY: 0, rot: 0 });
   const dragRef = useRef<{ x: number; y: number } | null>(null);
   const aircraftRef = useRef<AircraftSnapshot[]>(aircraft);
   const selectedRef = useRef<string | null>(selectedCallsign);
   const handoffsRef = useRef(recentHandoffs);
+  const roleRef = useRef(role);
 
   useEffect(() => {
     aircraftRef.current = aircraft;
   }, [aircraft]);
+  useEffect(() => {
+    roleRef.current = role;
+  }, [role]);
   useEffect(() => {
     selectedRef.current = selectedCallsign;
   }, [selectedCallsign]);
@@ -70,21 +89,38 @@ export function ApproachView({
     resize();
     window.addEventListener("resize", resize);
 
-    {
+    // Refit the scope for a chosen range (0 = the old fit-to-window
+    // behavior, sized for the legacy 6x5NM rings). Called on mount and
+    // again whenever the RANGE spinner or an `R <nm>` command changes it.
+    let lastRange = -1;
+    const applyRange = (rangeNm: number) => {
       const w = canvas.width / dpr;
       const h = canvas.height / dpr;
-      const radiusM = RING_SPACING_NM * RING_COUNT * NM_TO_M;
-      const fitScale = (Math.min(w, h) / 2 / radiusM) * 0.9;
-      viewRef.current = { scale: fitScale, panX: 0, panY: 0 };
-    }
+      const radiusM =
+        rangeNm > 0 ? rangeNm * NM_TO_M : RING_SPACING_NM * RING_COUNT * NM_TO_M;
+      viewRef.current = {
+        ...viewRef.current,
+        scale: (Math.min(w, h) / 2 / radiusM) * 0.9,
+      };
+      lastRange = rangeNm;
+    };
+    applyRange(getScopeSettings().rangeNm);
 
     const toScreen = (x: number, y: number) => {
-      const { scale, panX, panY } = viewRef.current;
+      const { scale, panX, panY, rot } = viewRef.current;
       const w = canvas.width / dpr;
       const h = canvas.height / dpr;
+      // Scope rotation (DCB ROT / `ROT <deg>`): world coordinates turn
+      // about the field origin so the chosen bearing sits at the top of
+      // the scope; pan stays screen-aligned because it's added after.
+      const rad = (rot * Math.PI) / 180;
+      const c = Math.cos(rad);
+      const s = Math.sin(rad);
+      const rx = x * c - y * s;
+      const ry = x * s + y * c;
       return {
-        sx: w / 2 + (x + panX) * scale,
-        sy: h / 2 - (y + panY) * scale,
+        sx: w / 2 + (rx + panX) * scale,
+        sy: h / 2 - (ry + panY) * scale,
       };
     };
 
@@ -92,6 +128,12 @@ export function ApproachView({
       const palette = getRadarPalette();
       const w = canvas.width / dpr;
       const h = canvas.height / dpr;
+      const S = getScopeSettings();
+      // Settings are read live every frame: a DCB spinner or a typed
+      // command lands on the very next frame without tearing down the
+      // canvas or its pan/zoom state.
+      if (S.rangeNm !== lastRange) applyRange(S.rangeNm);
+      viewRef.current.rot = S.rotationDeg;
       ctx.save();
       ctx.scale(dpr, dpr);
       ctx.fillStyle = palette.bg;
@@ -99,17 +141,24 @@ export function ApproachView({
 
       const center = toScreen(0, 0);
 
-      // Range rings, every RING_SPACING_NM out to RING_COUNT rings.
-      ctx.strokeStyle = palette.gateLinkStroke;
-      ctx.lineWidth = 1;
-      ctx.font = "9px monospace";
-      ctx.fillStyle = palette.taxiwayLabel;
-      for (let i = 1; i <= RING_COUNT; i++) {
-        const r = i * RING_SPACING_NM * NM_TO_M * viewRef.current.scale;
-        ctx.beginPath();
-        ctx.arc(center.sx, center.sy, r, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.fillText(`${i * RING_SPACING_NM}`, center.sx + r + 2, center.sy - 2);
+      // Range rings: the legacy 5NMFixed x 6 layout when RANGE is FIT,
+      // otherwise a scaled step out to the selected range. DCB toggles.
+      if (S.rings) {
+        const stepNm = S.rangeNm > 0 ? pickRingStep(S.rangeNm) : RING_SPACING_NM;
+        const maxNm = S.rangeNm > 0 ? S.rangeNm : stepNm * RING_COUNT;
+        ctx.strokeStyle = palette.gateLinkStroke;
+        ctx.lineWidth = 1;
+        ctx.font = "9px monospace";
+        ctx.fillStyle = palette.taxiwayLabel;
+        for (let i = 1; ; i++) {
+          const nm = i * stepNm;
+          if (nm > maxNm + 1e-9) break;
+          const r = nm * NM_TO_M * viewRef.current.scale;
+          ctx.beginPath();
+          ctx.arc(center.sx, center.sy, r, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.fillText(`${nm}`, center.sx + r + 2, center.sy - 2);
+        }
       }
 
       // Runways, for reference - at this scale the taxiway network isn't
@@ -142,9 +191,11 @@ export function ApproachView({
             ? palette.aircraftArrival
             : palette.aircraftDefault;
 
+        // Glyph bearing follows the scope rotation: with ROT holding
+        // bearing X at the top, a target flying heading H renders at H-X.
         ctx.save();
         ctx.translate(sx, sy);
-        ctx.rotate((ac.heading_deg * Math.PI) / 180);
+        ctx.rotate(((ac.heading_deg - viewRef.current.rot) * Math.PI) / 180);
         ctx.fillStyle = color;
         drawBlip(ctx);
         ctx.restore();
@@ -172,25 +223,36 @@ export function ApproachView({
           }
         }
 
-        // Datablock: callsign / altitude (hundreds, real ATC convention) +
-        // ground speed (tens) / vectored heading if Approach has assigned
-        // one - the information a real scope datablock actually carries.
-        const leaderEnd = { x: sx + 14, y: sy - 14 };
-        ctx.strokeStyle = color;
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(sx + 4, sy - 4);
-        ctx.lineTo(leaderEnd.x, leaderEnd.y);
-        ctx.stroke();
-
-        ctx.fillStyle = color;
-        ctx.font = "10px monospace";
-        ctx.fillText(ac.callsign, leaderEnd.x + 2, leaderEnd.y - 2);
-        const altHundreds = String(Math.round(ac.altitude_ft / 100)).padStart(3, "0");
-        const gsTens = String(Math.round(ac.ground_speed_kt / 10)).padStart(2, "0");
-        ctx.fillText(`${altHundreds} ${gsTens}`, leaderEnd.x + 2, leaderEnd.y + 9);
-        if (ac.assigned_heading_deg != null) {
-          ctx.fillText(`H${Math.round(ac.assigned_heading_deg)}`, leaderEnd.x + 2, leaderEnd.y + 20);
+        // Datablock with the three fidelity levels: FDB (callsign,
+        // altitude in hundreds + ground speed in tens, plus any assigned
+        // heading/altitude/speed) for tracks this position owns or
+        // Quick-Looks, PDB (callsign + alt/gs) for other positions'
+        // traffic, LDB (callsign alone) for out-of-domain returns.
+        const showBlock =
+          S.datablockMode === "all" || (S.datablockMode === "selected" && isSelected);
+        if (showBlock) {
+          const fid = fidelityOf(ac, "approach", roleRef.current, getQuickLook());
+          const altHundreds = String(Math.round(ac.altitude_ft / 100)).padStart(3, "0");
+          const gsTens = String(Math.round(ac.ground_speed_kt / 10)).padStart(2, "0");
+          let lines: string[];
+          if (fid === "FDB") {
+            const parts: string[] = [];
+            if (ac.assigned_heading_deg != null)
+              parts.push(`H${Math.round(ac.assigned_heading_deg)}`);
+            if (ac.assigned_altitude_ft != null)
+              parts.push(String(Math.round(ac.assigned_altitude_ft / 100)));
+            if (ac.assigned_speed_kt != null)
+              parts.push(String(Math.round(ac.assigned_speed_kt)));
+            lines = [ac.callsign, `${altHundreds} ${gsTens}`];
+            if (parts.length) lines.push(parts.join(" "));
+          } else if (fid === "PDB") {
+            lines = [ac.callsign, `${altHundreds} ${gsTens}`];
+          } else {
+            lines = [ac.callsign];
+          }
+          ctx.font = "10px monospace";
+          ctx.textBaseline = "alphabetic";
+          drawLeaderBlock({ ctx, callsign: ac.callsign, sx, sy, color, fidelity: fid, lines });
         }
       }
 

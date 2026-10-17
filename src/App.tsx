@@ -4,6 +4,9 @@ import { listen } from "@tauri-apps/api/event";
 import { SurfaceDisplay } from "./components/SurfaceDisplay";
 import { TowerCabView } from "./components/TowerCabView";
 import { ApproachView } from "./components/ApproachView";
+import { ScopeDCB } from "./components/ScopeDCB";
+import { ScopeCommandLine } from "./components/ScopeCommandLine";
+import { ControllerMessages } from "./components/ControllerMessages";
 import { ClearancePanel } from "./components/ClearancePanel";
 import { TopBar } from "./components/TopBar";
 import { DepArrWindow } from "./components/DepArrWindow";
@@ -21,6 +24,8 @@ import { enqueuePilotCalls } from "./pilotCalls";
 import { applyStoredTheme } from "./themeSettings";
 import { AVAILABLE_PLUGINS, isPluginEnabled } from "./pluginSettings";
 import { trackHandoffs, type HandoffEvent } from "./handoffTracking";
+import { receiveMessage, composeHandoffCoordination } from "./controllerMessaging";
+import type { ScopeKind } from "./scopeDisplay";
 import type { Profile } from "./profiles";
 import type {
   AircraftSnapshot,
@@ -61,6 +66,7 @@ function App() {
   const [installedVersion, setInstalledVersion] = useState(0);
   const [depArrOpen, setDepArrOpen] = useState(false);
   const [worldMapOpen, setWorldMapOpen] = useState(false);
+  const [messagesOpen, setMessagesOpen] = useState(false);
 
   // Tracks which position owns each aircraft tick over tick so a change -
   // a real handoff, whether to the human or to an AI-automated position -
@@ -71,8 +77,16 @@ function App() {
   const prevOwnerRef = useRef(new Map<string, ControllerRole>());
   const handoffsRef = useRef(new Map<string, HandoffEvent>());
   useEffect(() => {
-    trackHandoffs(aircraft, prevOwnerRef.current, handoffsRef.current);
-  }, [aircraft]);
+    const changes = trackHandoffs(aircraft, prevOwnerRef.current, handoffsRef.current);
+    // A handoff that touches the operator's seat is coordinated out loud on
+    // the messaging net by the position on the other end of it, so the MSG
+    // window comes alive without the operator keying first. receiveMessage
+    // rate-limits each position, so a busy final stays readable.
+    for (const { callsign, event } of changes) {
+      const coord = composeHandoffCoordination(role, event, callsign);
+      if (coord) receiveMessage(role, coord.from, coord.text);
+    }
+  }, [aircraft, role]);
 
   useEffect(() => {
     invoke<AirportSummary[]>("list_installed")
@@ -219,6 +233,10 @@ function App() {
   const pad = (n: number) => n.toString().padStart(2, "0");
   const selected = aircraft.find((a) => a.callsign === selectedCallsign) ?? null;
 
+  // Which scope the DCB and command line are driving this session.
+  const scopeKind: ScopeKind =
+    role === "approach" ? "approach" : viewMode === "smr" ? "smr" : "tower";
+
   return (
     <div className="app-shell">
       <UpdateBanner />
@@ -238,31 +256,52 @@ function App() {
         onDisconnect={exitToLauncher}
       />
       <div className="main-area">
-        {role === "approach" ? (
-          <ApproachView
-            airport={airport}
+        <div className="scope-shell">
+          <ScopeDCB
+            scope={scopeKind}
+            role={role}
+            selectedCallsign={selectedCallsign}
+            onOpenMessages={() => setMessagesOpen(true)}
+          />
+          <div className="scope-canvas">
+            {role === "approach" ? (
+              <ApproachView
+                airport={airport}
+                aircraft={aircraft}
+                role={role}
+                selectedCallsign={selectedCallsign}
+                onSelectAircraft={setSelectedCallsign}
+                recentHandoffs={handoffsRef.current}
+              />
+            ) : viewMode === "smr" ? (
+              <SurfaceDisplay
+                airport={airport}
+                aircraft={aircraft}
+                role={role}
+                selectedCallsign={selectedCallsign}
+                onSelectAircraft={setSelectedCallsign}
+                recentHandoffs={handoffsRef.current}
+              />
+            ) : (
+              <TowerCabView
+                airport={airport}
+                aircraft={aircraft}
+                role={role}
+                selectedCallsign={selectedCallsign}
+                onSelectAircraft={setSelectedCallsign}
+                recentHandoffs={handoffsRef.current}
+              />
+            )}
+          </div>
+          <ScopeCommandLine
+            scope={scopeKind}
+            role={role}
             aircraft={aircraft}
             selectedCallsign={selectedCallsign}
-            onSelectAircraft={setSelectedCallsign}
-            recentHandoffs={handoffsRef.current}
+            onSelect={setSelectedCallsign}
+            issue={onIssue}
           />
-        ) : viewMode === "smr" ? (
-          <SurfaceDisplay
-            airport={airport}
-            aircraft={aircraft}
-            selectedCallsign={selectedCallsign}
-            onSelectAircraft={setSelectedCallsign}
-            recentHandoffs={handoffsRef.current}
-          />
-        ) : (
-          <TowerCabView
-            airport={airport}
-            aircraft={aircraft}
-            selectedCallsign={selectedCallsign}
-            onSelectAircraft={setSelectedCallsign}
-            recentHandoffs={handoffsRef.current}
-          />
-        )}
+        </div>
         <ClearancePanel
           airport={airport}
           aircraft={aircraft}
@@ -278,6 +317,9 @@ function App() {
           onClose={() => setDepArrOpen(false)}
           onSelect={setSelectedCallsign}
         />
+      )}
+      {messagesOpen && (
+        <ControllerMessages role={role} onClose={() => setMessagesOpen(false)} />
       )}
       {worldMapOpen && isPluginEnabled("worldmap") && (
         <PluginHost
