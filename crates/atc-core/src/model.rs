@@ -56,9 +56,11 @@ pub struct Area {
     pub points: Vec<[f64; 2]>,
 }
 
-/// A real-world control tower position, used to anchor the Tower Cab 3D
-/// view's camera. Airports without an OSM-tagged tower fall back to the
-/// airport reference point at a nominal height.
+/// A real-world control tower position (x/y plus height). Parsed and
+/// carried through to the frontend but not yet rendered: the current Tower
+/// Cab view is a 2D plan over satellite imagery and doesn't read this. Kept
+/// because it's the natural anchor for a future out-the-window / camera
+/// view. Airports without an OSM-tagged tower have none.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Tower {
     pub x: f64,

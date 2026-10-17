@@ -153,6 +153,7 @@ impl Simulation {
             heading_deg: 0.0,
             ground_speed_kt: 0.0,
             hold_short_node: Some(runway_node),
+            held: false,
             cleared_for_takeoff: false,
             cleared_to_land: false,
             cleared_pushback: false,
@@ -238,8 +239,12 @@ impl Simulation {
             heading_deg: inbound_heading,
             ground_speed_kt: APPROACH_INITIAL_SPEED_KT,
             hold_short_node: None,
+            held: false,
             cleared_for_takeoff: false,
-            cleared_to_land: true,
+            // Not pre-cleared: an arrival on final must actually be cleared
+            // to land (by Tower, or the AI tower if Tower isn't worked)
+            // before it will touch down.
+            cleared_to_land: false,
             cleared_pushback: false,
             engine_start_approved: false,
             is_speaking: false,
@@ -299,7 +304,15 @@ impl Simulation {
             .ok_or_else(|| format!("unknown callsign {}", cmd.callsign))?;
 
         let owner = ac.state.owning_role();
-        if owner != active_role {
+        // Tower issues the landing clearance while the arrival is still on
+        // final - Approach's airspace in this model - mirroring the real
+        // Approach->Tower handoff on final. It's the one clearance a
+        // position issues to an aircraft another position formally owns.
+        let tower_landing = active_role == ControllerRole::Tower
+            && matches!(cmd.clearance, Clearance::ClearedToLand)
+            && ac.state == AircraftState::OnApproach
+            && ac.flight_plan.rule == FlightRule::Arrival;
+        if owner != active_role && !tower_landing {
             return Err(format!(
                 "{} is {:?}'s aircraft right now, not {:?}'s",
                 cmd.callsign, owner, active_role
@@ -350,11 +363,20 @@ impl Simulation {
                 ac.state = AircraftState::HoldingShort;
             }
             Clearance::HoldPosition => {
+                // Stop in place and stay stopped. The tick honors `held`
+                // for pushback and taxi phases, so the aircraft no longer
+                // resumes on its own the next tick.
+                ac.held = true;
                 ac.ground_speed_kt = 0.0;
             }
             Clearance::ResumeTaxi => {
+                ac.held = false;
                 if ac.state == AircraftState::HoldingShort {
                     ac.state = AircraftState::TaxiingToRunway;
+                    // Drop the hold-short restriction so the aircraft
+                    // doesn't immediately re-trigger it and fall straight
+                    // back to HoldingShort on the next tick.
+                    ac.hold_short_node = None;
                 }
             }
             Clearance::LineUpAndWait => {
@@ -417,6 +439,10 @@ impl Simulation {
                     continue;
                 }
                 AircraftState::PushingBack => {
+                    if ac.held {
+                        ac.ground_speed_kt = 0.0;
+                        continue;
+                    }
                     ac.ground_speed_kt = PUSHBACK_SPEED_KT;
                     advance_along_route(ac, dt_s, &self.graph);
                     if ac.cleared_pushback && ac.route_index >= ac.pushback_end_index {
@@ -430,6 +456,10 @@ impl Simulation {
                     }
                 }
                 AircraftState::TaxiingToRunway | AircraftState::TaxiingToGate => {
+                    if ac.held {
+                        ac.ground_speed_kt = 0.0;
+                        continue;
+                    }
                     ac.ground_speed_kt = TAXI_SPEED_KT;
                     let blocked = ac
                         .hold_short_node
@@ -526,7 +556,7 @@ impl Simulation {
                     ac.altitude_ft = ease_toward(ac.altitude_ft, target_alt, APPROACH_ALT_RATE_FPS * dt_s);
 
                     let move_dist = ac.ground_speed_kt * KT_TO_MPS * dt_s;
-                    if ac.cleared_approach && dist_m <= move_dist.max(50.0) {
+                    if ac.cleared_to_land && dist_m <= move_dist.max(50.0) {
                         let (tx, ty) = (threshold.x, threshold.y);
                         ac.x = tx;
                         ac.y = ty;
@@ -538,9 +568,10 @@ impl Simulation {
                             callsign: ac.callsign.clone(),
                             message: "over the threshold".to_string(),
                         });
-                    } else if !ac.cleared_approach && dist_m < 500.0 {
-                        // Not cleared and about to reach the runway - hold
-                        // rather than land itself without a clearance.
+                    } else if !ac.cleared_to_land && dist_m < 500.0 {
+                        // Not cleared to land and about to reach the runway -
+                        // hold on short final rather than landing itself
+                        // without Tower's clearance.
                         ac.ground_speed_kt = 0.0;
                     } else {
                         let heading_rad = ac.heading_deg.to_radians();
@@ -643,6 +674,19 @@ impl Simulation {
                         if let Some(ac) = self.aircraft.get_mut(cs) {
                             ac.cleared_approach = true;
                         }
+                    }
+                }
+                // AI tower clears an established arrival to land once it's on
+                // the approach, so a session that isn't working Tower still
+                // lands its arrivals instead of leaving them holding short
+                // final forever.
+                AircraftState::OnApproach
+                    if active_role != ControllerRole::Tower
+                        && ac.cleared_approach
+                        && !ac.cleared_to_land =>
+                {
+                    if let Some(ac) = self.aircraft.get_mut(cs) {
+                        ac.cleared_to_land = true;
                     }
                 }
                 AircraftState::HoldingShort if active_role != ControllerRole::Tower => {

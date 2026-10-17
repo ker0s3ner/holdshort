@@ -156,6 +156,18 @@ fn arrival_taxis_from_runway_to_gate() {
     )
     .unwrap();
 
+    // Tower clears the arrival to land while it's still on final - the one
+    // cross-position clearance (the aircraft is formally Approach's until
+    // it's on the runway).
+    sim.apply_clearance(
+        ClearanceCommand {
+            callsign: "TEST2".into(),
+            clearance: Clearance::ClearedToLand,
+        },
+        ControllerRole::Tower,
+    )
+    .unwrap();
+
     // Flies the approach, lands, and vacates the runway - then, once clear,
     // the arrival stops and waits; ground has to actually clear it to the
     // gate, it doesn't roll straight through.

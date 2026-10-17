@@ -175,11 +175,6 @@ fn set_runway_use(
 }
 
 #[tauri::command]
-fn get_traffic(state: tauri::State<AppState>) -> SimTick {
-    build_snapshot(&state.sim.lock().unwrap())
-}
-
-#[tauri::command]
 fn issue_clearance(state: tauri::State<AppState>, command: ClearanceCommand) -> Result<(), String> {
     let role = *state.role.lock().unwrap();
     state.sim.lock().unwrap().apply_clearance(command, role)
@@ -789,7 +784,6 @@ pub fn run() {
             start_session,
             end_session,
             get_airport,
-            get_traffic,
             issue_clearance,
             set_speaking,
             get_metar,

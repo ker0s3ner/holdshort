@@ -117,6 +117,12 @@ pub struct Aircraft {
     /// Node id of a hold-short restriction, if any; aircraft will not
     /// proceed past this point until the restriction is cleared.
     pub hold_short_node: Option<String>,
+    /// Set by a "hold position" clearance: the aircraft stays stopped
+    /// wherever it is (mid-pushback or mid-taxi) regardless of its state,
+    /// until a "resume taxi" clearance lifts it. Distinct from
+    /// hold_short_node, which stops the aircraft at a specific point rather
+    /// than in place.
+    pub held: bool,
     pub cleared_for_takeoff: bool,
     pub cleared_to_land: bool,
     pub cleared_pushback: bool,

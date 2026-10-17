@@ -69,10 +69,8 @@ impl TaxiGraph {
         }
     }
 
-    /// A* shortest path by ground distance. `avoid_kind` lets callers forbid
-    /// routing straight across an active runway when a simpler apron-only
-    /// route is wanted (not used yet, reserved for future runway-crossing
-    /// clearance logic).
+    /// A* shortest path by ground distance across the full movement-area
+    /// graph (taxiways, taxilanes, crossable runways, gate links).
     pub fn find_path(&self, start: &str, goal: &str) -> Option<Vec<String>> {
         if !self.nodes.contains_key(start) || !self.nodes.contains_key(goal) {
             return None;
@@ -163,15 +161,6 @@ impl TaxiGraph {
         Some((rollout, exit_index))
     }
 
-    pub fn nearest_node(&self, x: f64, y: f64) -> Option<&Node> {
-        self.nodes
-            .values()
-            .min_by(|a, b| {
-                let da = (a.x - x).powi(2) + (a.y - y).powi(2);
-                let db = (b.x - x).powi(2) + (b.y - y).powi(2);
-                da.partial_cmp(&db).unwrap_or(Ordering::Equal)
-            })
-    }
 }
 
 fn reconstruct_path(came_from: &HashMap<String, String>, goal: &str) -> Vec<String> {
