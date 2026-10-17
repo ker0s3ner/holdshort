@@ -18,6 +18,9 @@ src-tauri/gen/
 # OS
 .DS_Store
 
+# Freebuff tool artifact (external, not part of this project)
+.freebuff/
+
 # Editor
 .vscode/*
 !.vscode/extensions.json
