@@ -27,11 +27,21 @@ export function describeClearance(clearance: Clearance): string {
         return "go around";
       case "CancelClearance":
         return "disregard, cancel clearance";
+      case "ClearedApproach":
+        return "cleared approach";
     }
   }
   if ("TaxiToRunway" in clearance) return "taxi to the runway";
   if ("TaxiToGate" in clearance) return `taxi to gate ${clearance.TaxiToGate.gate_ref}`;
   if ("HoldShort" in clearance) return "hold short";
+  if ("Vector" in clearance) return `turn heading ${Math.round(clearance.Vector.heading_deg)}`;
+  if ("DescendAndMaintain" in clearance) {
+    return `descend and maintain ${Math.round(clearance.DescendAndMaintain.altitude_ft)}`;
+  }
+  if ("ClimbAndMaintain" in clearance) {
+    return `climb and maintain ${Math.round(clearance.ClimbAndMaintain.altitude_ft)}`;
+  }
+  if ("AssignSpeed" in clearance) return `reduce speed ${Math.round(clearance.AssignSpeed.speed_kt)}`;
   return "roger";
 }
 

@@ -101,6 +101,11 @@ export interface AircraftSnapshot {
   assigned_gate: string;
   assigned_runway: string;
   is_speaking: boolean;
+  altitude_ft: number;
+  assigned_heading_deg: number | null;
+  assigned_altitude_ft: number | null;
+  assigned_speed_kt: number | null;
+  cleared_approach: boolean;
 }
 
 export interface SimTick {
@@ -135,7 +140,12 @@ export type Clearance =
   | "ClearedForTakeoff"
   | "ClearedToLand"
   | "GoAround"
-  | "CancelClearance";
+  | "CancelClearance"
+  | { Vector: { heading_deg: number } }
+  | { DescendAndMaintain: { altitude_ft: number } }
+  | { ClimbAndMaintain: { altitude_ft: number } }
+  | { AssignSpeed: { speed_kt: number } }
+  | "ClearedApproach";
 
 export interface ClearanceCommand {
   callsign: string;

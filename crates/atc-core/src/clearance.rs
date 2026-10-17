@@ -17,6 +17,16 @@ pub enum Clearance {
     ClearedToLand,
     GoAround,
     CancelClearance,
+    /// Approach vectoring - a fixed heading to fly, overriding the
+    /// aircraft's own direct-to-threshold/climb-out default.
+    Vector { heading_deg: f64 },
+    DescendAndMaintain { altitude_ft: f64 },
+    ClimbAndMaintain { altitude_ft: f64 },
+    AssignSpeed { speed_kt: f64 },
+    /// Required before an arrival will actually land - without it, an
+    /// OnApproach aircraft holds short of the runway rather than landing
+    /// itself just because it got close.
+    ClearedApproach,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

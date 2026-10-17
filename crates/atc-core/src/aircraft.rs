@@ -53,9 +53,10 @@ impl AircraftState {
             AircraftState::HoldingShort
             | AircraftState::LinedUp
             | AircraftState::TakeoffRoll
-            | AircraftState::Departed
-            | AircraftState::OnApproach
             | AircraftState::LandingRollout => ControllerRole::Tower,
+            // Vectoring an arrival down final, or a departure climbing out,
+            // is Approach's job in a real facility, not Tower's.
+            AircraftState::OnApproach | AircraftState::Departed => ControllerRole::Approach,
         }
     }
 }
@@ -95,6 +96,24 @@ pub struct Aircraft {
     pub y: f64,
     pub heading_deg: f64,
     pub ground_speed_kt: f64,
+    /// Altitude in feet above the field - 0 while on the ground. Real
+    /// airborne state for OnApproach/Departed, not just a cosmetic field.
+    pub altitude_ft: f64,
+    /// A controller-assigned heading/altitude/speed, as opposed to the
+    /// aircraft's own autopilot default (direct-to-threshold, a standard
+    /// glideslope, a standard speed profile) - None means "flying its own
+    /// profile", Some means Approach has actually vectored it.
+    pub assigned_heading_deg: Option<f64>,
+    pub assigned_altitude_ft: Option<f64>,
+    pub assigned_speed_kt: Option<f64>,
+    /// Required before an arrival may transition from OnApproach into
+    /// LandingRollout - without it, the aircraft holds short final rather
+    /// than landing itself.
+    pub cleared_approach: bool,
+    /// Sim clock timestamp when this aircraft entered Departed (climb-out),
+    /// so it can be removed from the sim after a bounded, realistic climb
+    /// instead of either vanishing instantly or climbing forever.
+    pub departed_at_s: Option<f64>,
     /// Node id of a hold-short restriction, if any; aircraft will not
     /// proceed past this point until the restriction is cleared.
     pub hold_short_node: Option<String>,

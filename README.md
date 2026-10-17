@@ -1,15 +1,21 @@
 # Holdshort
 
-A ground-operations ATC simulator: real-world taxiway/runway/gate geometry
-(pulled from OpenStreetMap), A* taxi routing, a ground/tower clearance state
-machine, procedural AI traffic, and two views of the field — a Surface
-Movement Radar (SMR) plan display and a Tower Cab view over real satellite
-imagery with a visibility ring. Built with Tauri (Rust core + React/Canvas
-frontend). macOS (Apple Silicon) first; Windows later.
+A ground-operations and terminal-airspace ATC simulator: real-world
+taxiway/runway/gate geometry (pulled from OpenStreetMap), A* taxi routing, a
+ramp/ground/tower clearance state machine, Approach vectoring (heading/
+altitude/speed, arrivals flown in from a spawn point on final rather than
+teleported onto the runway), procedural AI traffic, and three views of the
+airspace — a Surface Movement Radar (SMR) plan display, a Tower Cab view
+over real satellite imagery with a visibility ring, and an Approach radar
+scope with range rings and datablocks. Built with Tauri (Rust core +
+React/Canvas frontend). macOS (Apple Silicon) first; Windows later.
+
+Every position not actually being worked by the human controller runs on
+its own AI timer (pushback, taxi, takeoff, approach clearance), so a
+single-position session still produces a complete, moving traffic flow.
 
 On launch you pick an airport pack and a position (Ramp, Ground, Tower, or
-Approach — Approach is a read-only preview for now) before entering the
-session. Bundled airports: KBUR, EGKK, KJFK, KATL, OMDB, RJTT, KDFW, KORD,
+Approach). Bundled airports: KBUR, EGKK, KJFK, KATL, OMDB, RJTT, KDFW, KORD,
 EGLL, LTFM, KLAX, EDDF.
 
 ## Project layout

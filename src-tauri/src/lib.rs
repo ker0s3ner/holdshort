@@ -37,6 +37,11 @@ struct AircraftSnapshot {
     assigned_gate: String,
     assigned_runway: String,
     is_speaking: bool,
+    altitude_ft: f64,
+    assigned_heading_deg: Option<f64>,
+    assigned_altitude_ft: Option<f64>,
+    assigned_speed_kt: Option<f64>,
+    cleared_approach: bool,
 }
 
 #[derive(Serialize, Clone)]
@@ -682,6 +687,11 @@ fn build_snapshot(sim: &Simulation) -> SimTick {
             assigned_gate: ac.flight_plan.assigned_gate.clone(),
             assigned_runway: ac.flight_plan.assigned_runway.clone(),
             is_speaking: ac.is_speaking,
+            altitude_ft: ac.altitude_ft,
+            assigned_heading_deg: ac.assigned_heading_deg,
+            assigned_altitude_ft: ac.assigned_altitude_ft,
+            assigned_speed_kt: ac.assigned_speed_kt,
+            cleared_approach: ac.cleared_approach,
         })
         .collect();
     SimTick {

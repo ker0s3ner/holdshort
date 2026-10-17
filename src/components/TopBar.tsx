@@ -142,7 +142,8 @@ export function TopBar({
             📡
           </button>
           <span className="tb-position">
-            {airport.icao}_{role.toUpperCase()} [{viewMode === "smr" ? "SMR" : "TWR"}]
+            {airport.icao}_{role.toUpperCase()} [
+            {role === "approach" ? "APP" : viewMode === "smr" ? "SMR" : "TWR"}]
           </span>
           <span className="tb-freq">{frequencyFor(airport.icao, role)}</span>
           <button className="tb-menu-trigger" onClick={() => setAtisOpen(true)}>

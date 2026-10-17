@@ -26,6 +26,29 @@ const AUTO_TAKEOFF_DELAY_S: f64 = 20.0;
 /// aircraft that has finished pushback and is sitting ready, when the human
 /// controller isn't working ground themselves.
 const AUTO_TAXI_DELAY_S: f64 = 15.0;
+/// How far behind the threshold an arrival spawns on final (~18nm) -
+/// close enough to keep the approach visible/short, far enough to give a
+/// real controller something to vector.
+const APPROACH_SPAWN_DISTANCE_M: f64 = 33_000.0;
+const APPROACH_INITIAL_SPEED_KT: f64 = 180.0;
+const APPROACH_FINAL_SPEED_KT: f64 = 130.0;
+const APPROACH_SPEED_ACCEL_KT_PER_S: f64 = 2.0;
+/// ~1500 ft/min, a standard descent rate.
+const APPROACH_ALT_RATE_FPS: f64 = 25.0;
+/// Standard-rate turn.
+const APPROACH_TURN_RATE_DEG_PER_S: f64 = 3.0;
+/// A rough 3-degree glideslope (~300ft per nautical mile) used as the
+/// default altitude target when Approach hasn't assigned one.
+const GLIDESLOPE_FT_PER_M: f64 = 300.0 / 1852.0;
+/// How long an AI approach position takes to clear an arrival for the
+/// approach when the human controller isn't working approach themselves.
+const AUTO_APPROACH_CLEARANCE_DELAY_S: f64 = 20.0;
+const DEPARTURE_CRUISE_ALT_FT: f64 = 10_000.0;
+/// ~1800 ft/min initial climb.
+const DEPARTURE_CLIMB_RATE_FPS: f64 = 30.0;
+/// How long a departure stays visible climbing out before being handed
+/// off/removed, win or lose on reaching DEPARTURE_CRUISE_ALT_FT first.
+const DEPARTURE_VISIBLE_MAX_S: f64 = 90.0;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct SimEvent {
@@ -137,6 +160,12 @@ impl Simulation {
             is_speaking: false,
             parked_at_s: None,
             ready_since_s: Some(self.clock_s),
+            altitude_ft: 0.0,
+            assigned_heading_deg: None,
+            assigned_altitude_ft: None,
+            assigned_speed_kt: None,
+            cleared_approach: false,
+            departed_at_s: None,
         };
         self.aircraft.insert(callsign.to_string(), aircraft);
         Ok(())
@@ -173,11 +202,24 @@ impl Simulation {
             .find_arrival_path(&threshold_node, &far_end_node, &gate_node)
             .ok_or_else(|| format!("no taxi route from runway {runway_ref} to gate {gate_ref}"))?;
 
-        let start = &self.graph.nodes[&threshold_node];
+        // Spawn out on final rather than straight onto the runway - the
+        // inbound course is the direction of travel while landing (from
+        // the far end toward the threshold), and the spawn point sits
+        // APPROACH_SPAWN_DISTANCE_M behind the threshold along that course.
+        let threshold = &self.graph.nodes[&threshold_node];
+        let far = &self.graph.nodes[&far_end_node];
+        let dx = threshold.x - far.x;
+        let dy = threshold.y - far.y;
+        let dist = (dx * dx + dy * dy).sqrt().max(1.0);
+        let (ux, uy) = (dx / dist, dy / dist);
+        let inbound_heading = (ux.atan2(uy).to_degrees() + 360.0) % 360.0;
+        let start_x = threshold.x - ux * APPROACH_SPAWN_DISTANCE_M;
+        let start_y = threshold.y - uy * APPROACH_SPAWN_DISTANCE_M;
+
         let aircraft = Aircraft {
             callsign: callsign.to_string(),
             aircraft_type: aircraft_type.to_string(),
-            state: AircraftState::LandingRollout,
+            state: AircraftState::OnApproach,
             flight_plan: FlightPlan {
                 callsign: callsign.to_string(),
                 aircraft_type: aircraft_type.to_string(),
@@ -191,10 +233,10 @@ impl Simulation {
             route_index: 0,
             pushback_end_index: 0,
             runway_exit_index,
-            x: start.x,
-            y: start.y,
-            heading_deg: 0.0,
-            ground_speed_kt: LANDING_ROLLOUT_SPEED_KT,
+            x: start_x,
+            y: start_y,
+            heading_deg: inbound_heading,
+            ground_speed_kt: APPROACH_INITIAL_SPEED_KT,
             hold_short_node: None,
             cleared_for_takeoff: false,
             cleared_to_land: true,
@@ -202,7 +244,16 @@ impl Simulation {
             engine_start_approved: false,
             is_speaking: false,
             parked_at_s: None,
-            ready_since_s: None,
+            ready_since_s: Some(self.clock_s),
+            // Matches the default glideslope target for this distance, so
+            // the aircraft is already descending from the moment it
+            // spawns instead of climbing to "catch up" to the glideslope.
+            altitude_ft: APPROACH_SPAWN_DISTANCE_M * GLIDESLOPE_FT_PER_M,
+            assigned_heading_deg: None,
+            assigned_altitude_ft: None,
+            assigned_speed_kt: None,
+            cleared_approach: false,
+            departed_at_s: None,
         };
         self.aircraft.insert(callsign.to_string(), aircraft);
         Ok(())
@@ -323,11 +374,25 @@ impl Simulation {
             }
             Clearance::GoAround => {
                 ac.state = AircraftState::Departed;
+                ac.departed_at_s = Some(self.clock_s);
             }
             Clearance::CancelClearance => {
                 ac.cleared_for_takeoff = false;
                 ac.cleared_to_land = false;
                 ac.cleared_pushback = false;
+            }
+            Clearance::Vector { heading_deg } => {
+                ac.assigned_heading_deg = Some(heading_deg.rem_euclid(360.0));
+            }
+            Clearance::DescendAndMaintain { altitude_ft } | Clearance::ClimbAndMaintain { altitude_ft } => {
+                ac.assigned_altitude_ft = Some(altitude_ft.max(0.0));
+            }
+            Clearance::AssignSpeed { speed_kt } => {
+                ac.assigned_speed_kt = Some(speed_kt.max(0.0));
+            }
+            Clearance::ClearedApproach => {
+                ac.cleared_approach = true;
+                ac.assigned_heading_deg = None;
             }
         }
         Ok(())
@@ -407,18 +472,81 @@ impl Simulation {
                     advance_along_route(ac, dt_s, &self.graph);
                     if ac.ground_speed_kt >= TAKEOFF_DECISION_SPEED_KT {
                         ac.state = AircraftState::Departed;
+                        ac.departed_at_s = Some(self.clock_s);
                         events.push(SimEvent {
                             callsign: ac.callsign.clone(),
-                            message: "airborne, departing area".to_string(),
+                            message: "airborne, climbing out".to_string(),
                         });
                     }
                 }
                 AircraftState::Departed => {
-                    done.push(ac.callsign.clone());
+                    // A bounded, visible climb-out instead of vanishing the
+                    // instant takeoff speed is hit - Approach's airspace,
+                    // responds to Vector/ClimbAndMaintain/AssignSpeed like
+                    // OnApproach does, until it reaches cruise or simply
+                    // flies far enough out to hand off.
+                    let since = ac.departed_at_s.unwrap_or(self.clock_s);
+                    let target_heading = ac.assigned_heading_deg.unwrap_or(ac.heading_deg);
+                    turn_toward(ac, target_heading, dt_s);
+                    let target_speed = ac.assigned_speed_kt.unwrap_or(250.0);
+                    ac.ground_speed_kt =
+                        ease_toward(ac.ground_speed_kt, target_speed, APPROACH_SPEED_ACCEL_KT_PER_S * dt_s);
+                    let target_alt = ac.assigned_altitude_ft.unwrap_or(DEPARTURE_CRUISE_ALT_FT);
+                    ac.altitude_ft = ease_toward(ac.altitude_ft, target_alt, DEPARTURE_CLIMB_RATE_FPS * dt_s);
+                    let move_dist = ac.ground_speed_kt * KT_TO_MPS * dt_s;
+                    let heading_rad = ac.heading_deg.to_radians();
+                    ac.x += heading_rad.sin() * move_dist;
+                    ac.y += heading_rad.cos() * move_dist;
+                    if ac.altitude_ft >= DEPARTURE_CRUISE_ALT_FT
+                        || self.clock_s - since >= DEPARTURE_VISIBLE_MAX_S
+                    {
+                        done.push(ac.callsign.clone());
+                    }
                 }
                 AircraftState::OnApproach => {
-                    // Final approach is handled outside the surface sim for v1;
-                    // arrivals are spawned directly into LandingRollout.
+                    let Some(threshold) = ac.route.first().and_then(|id| self.graph.nodes.get(id)) else {
+                        continue;
+                    };
+                    let dx = threshold.x - ac.x;
+                    let dy = threshold.y - ac.y;
+                    let dist_m = (dx * dx + dy * dy).sqrt();
+                    let direct_heading = (dx.atan2(dy).to_degrees() + 360.0) % 360.0;
+                    let target_heading = ac.assigned_heading_deg.unwrap_or(direct_heading);
+                    turn_toward(ac, target_heading, dt_s);
+
+                    let dist_nm = dist_m / 1852.0;
+                    let default_speed = APPROACH_FINAL_SPEED_KT
+                        + (dist_nm.min(10.0) / 10.0) * (APPROACH_INITIAL_SPEED_KT - APPROACH_FINAL_SPEED_KT);
+                    let target_speed = ac.assigned_speed_kt.unwrap_or(default_speed);
+                    ac.ground_speed_kt =
+                        ease_toward(ac.ground_speed_kt, target_speed, APPROACH_SPEED_ACCEL_KT_PER_S * dt_s);
+
+                    let default_alt = (dist_m * GLIDESLOPE_FT_PER_M).max(0.0);
+                    let target_alt = ac.assigned_altitude_ft.unwrap_or(default_alt);
+                    ac.altitude_ft = ease_toward(ac.altitude_ft, target_alt, APPROACH_ALT_RATE_FPS * dt_s);
+
+                    let move_dist = ac.ground_speed_kt * KT_TO_MPS * dt_s;
+                    if ac.cleared_approach && dist_m <= move_dist.max(50.0) {
+                        let (tx, ty) = (threshold.x, threshold.y);
+                        ac.x = tx;
+                        ac.y = ty;
+                        ac.altitude_ft = 0.0;
+                        ac.ground_speed_kt = LANDING_ROLLOUT_SPEED_KT;
+                        ac.state = AircraftState::LandingRollout;
+                        ac.ready_since_s = None;
+                        events.push(SimEvent {
+                            callsign: ac.callsign.clone(),
+                            message: "over the threshold".to_string(),
+                        });
+                    } else if !ac.cleared_approach && dist_m < 500.0 {
+                        // Not cleared and about to reach the runway - hold
+                        // rather than land itself without a clearance.
+                        ac.ground_speed_kt = 0.0;
+                    } else {
+                        let heading_rad = ac.heading_deg.to_radians();
+                        ac.x += heading_rad.sin() * move_dist;
+                        ac.y += heading_rad.cos() * move_dist;
+                    }
                 }
                 AircraftState::LandingRollout => {
                     // Decelerating toward the exit speed paces the rollout
@@ -508,6 +636,15 @@ impl Simulation {
                         }
                     }
                 }
+                AircraftState::OnApproach
+                    if active_role != ControllerRole::Approach && !ac.cleared_approach =>
+                {
+                    if clock - since >= AUTO_APPROACH_CLEARANCE_DELAY_S {
+                        if let Some(ac) = self.aircraft.get_mut(cs) {
+                            ac.cleared_approach = true;
+                        }
+                    }
+                }
                 AircraftState::HoldingShort if active_role != ControllerRole::Tower => {
                     if clock - since < AUTO_TAKEOFF_DELAY_S {
                         continue;
@@ -554,6 +691,22 @@ fn local_clock_seconds(lon_deg: f64) -> f64 {
     let utc_seconds_since_midnight = now % 86400.0;
     let offset_hours = (lon_deg / 15.0).round();
     (utc_seconds_since_midnight + offset_hours * 3600.0).rem_euclid(86400.0)
+}
+
+/// Standard-rate turn toward a target heading, always the shorter way
+/// around - used for airborne flight (OnApproach/Departed), which isn't
+/// constrained to the taxi graph's node-to-node headings.
+fn turn_toward(ac: &mut Aircraft, target_heading_deg: f64, dt_s: f64) {
+    let diff = ((target_heading_deg - ac.heading_deg + 540.0) % 360.0) - 180.0;
+    let max_turn = APPROACH_TURN_RATE_DEG_PER_S * dt_s;
+    ac.heading_deg = (ac.heading_deg + diff.clamp(-max_turn, max_turn) + 360.0) % 360.0;
+}
+
+/// Eases a value toward a target at a bounded rate per tick - shared by
+/// altitude and speed changes so neither snaps instantly to an assigned
+/// value.
+fn ease_toward(current: f64, target: f64, max_delta: f64) -> f64 {
+    current + (target - current).clamp(-max_delta, max_delta)
 }
 
 /// Moves an aircraft toward its current route target at its current ground

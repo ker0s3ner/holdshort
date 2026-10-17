@@ -5,7 +5,7 @@ import { isRecording, startListening, stopListeningAndTranscribe } from "../stt"
 import { getPttKey, isSttEnabled } from "../voiceSettings";
 import { matchSpokenCallsign, spellCallsign } from "../speech";
 import { speakOnChannel } from "../radio";
-import { parseClearance } from "../clearanceParser";
+import { parseClearance, parseCommand } from "../clearanceParser";
 import { STATE_LABELS } from "../aircraftState";
 
 interface Props {
@@ -23,8 +23,7 @@ interface ClearanceButton {
 }
 
 /** Each position only gets the clearances a real controller in that chair
- * would issue. Approach has no direct surface control yet — arrivals are
- * procedurally spawned onto final — so it's read-only for now. */
+ * would issue. */
 const BUTTONS_BY_ROLE: Record<ControllerRole, ClearanceButton[]> = {
   ramp: [
     { label: "Engine Start Approved", clearance: "EngineStartApproved" },
@@ -44,8 +43,15 @@ const BUTTONS_BY_ROLE: Record<ControllerRole, ClearanceButton[]> = {
     { label: "Cleared to Land", clearance: "ClearedToLand" },
     { label: "Go Around", clearance: "GoAround" },
   ],
-  approach: [],
+  approach: [
+    { label: "Cleared Approach", clearance: "ClearedApproach" },
+    { label: "Go Around", clearance: "GoAround" },
+  ],
 };
+
+/** OnApproach/Departed aircraft are Approach's own, same role the Held
+ * Positions list plays for Ground/Tower. */
+const APPROACH_STATES = new Set(["OnApproach", "Departed"]);
 
 const ADJACENT_POSITIONS: Record<ControllerRole, (keyof typeof BUTTONS_BY_ROLE)[]> = {
   ramp: ["ground"],
@@ -67,7 +73,9 @@ export function ClearancePanel({
   const selected = aircraft.find((a) => a.callsign === selectedCallsign) ?? null;
   const buttons = BUTTONS_BY_ROLE[role];
   const held = aircraft.filter((a) => HELD_STATES.has(a.state));
+  const approachTraffic = aircraft.filter((a) => APPROACH_STATES.has(a.state));
 
+  const [commandText, setCommandText] = useState("");
   const [recording, setRecording] = useState(false);
   const [heard, setHeard] = useState<string | null>(null);
   const startingRef = useRef(false);
@@ -75,6 +83,29 @@ export function ClearancePanel({
   const issue = (clearance: Clearance) => {
     if (!selectedCallsign) return;
     onIssue(selectedCallsign, clearance).catch((e) => setHeard(`${e}`));
+  };
+
+  // CRC-style abbreviated command entry (H270, D30, S210, CA...) - see
+  // clearanceParser.ts's parseCommand for the full set.
+  const submitCommand = (e: React.FormEvent) => {
+    e.preventDefault();
+    const clearance = parseCommand(commandText);
+    if (!clearance) {
+      setHeard(`"${commandText}" - not a recognized command`);
+      setCommandText("");
+      return;
+    }
+    if (!selectedCallsign) {
+      setHeard(`"${commandText}" - understood, but no aircraft selected`);
+      setCommandText("");
+      return;
+    }
+    const target = selectedCallsign;
+    const text = commandText;
+    onIssue(target, clearance)
+      .then(() => setHeard(`"${text}" → issued to ${target}`))
+      .catch((err) => setHeard(`"${text}" → ${err}`));
+    setCommandText("");
   };
 
   // A real controller moving on to the next aircraft on a busy frequency
@@ -199,8 +230,10 @@ export function ClearancePanel({
 
       <div className="panel-subheader">Held Positions</div>
       <div className="held-list">
-        {held.length === 0 && <div className="muted">None holding.</div>}
-        {held.map((ac) => (
+        {role === "approach"
+          ? approachTraffic.length === 0 && <div className="muted">None on frequency.</div>
+          : held.length === 0 && <div className="muted">None holding.</div>}
+        {(role === "approach" ? approachTraffic : held).map((ac) => (
           <button
             key={ac.callsign}
             className={ac.callsign === selectedCallsign ? "aircraft-row selected" : "aircraft-row"}
@@ -209,26 +242,19 @@ export function ClearancePanel({
             <span className="callsign">{ac.callsign}</span>
             <span className="type">{ac.aircraft_type}</span>
             <span className="state">
-              {ac.state === "LinedUp"
-                ? "lined up"
-                : ac.state === "ReadyForTaxi"
-                  ? "ready to taxi"
-                  : "holding short"}
+              {role === "approach"
+                ? `${Math.round(ac.altitude_ft)} ft`
+                : ac.state === "LinedUp"
+                  ? "lined up"
+                  : ac.state === "ReadyForTaxi"
+                    ? "ready to taxi"
+                    : "holding short"}
             </span>
           </button>
         ))}
       </div>
 
-      {role === "approach" && (
-        <div className="clearance-detail">
-          <p className="muted settings-note">
-            Approach control is a preview: arrivals are generated directly onto final rather than
-            vectored. Sequencing and speed/altitude control are planned, not simulated yet.
-          </p>
-        </div>
-      )}
-
-      {selected && role !== "approach" && (
+      {selected && (
         <div className="clearance-detail">
           <div className="detail-line">
             {selected.callsign} · {selected.aircraft_type} · gate {selected.assigned_gate} · rwy{" "}
@@ -238,6 +264,12 @@ export function ClearancePanel({
           <div className="detail-line detail-line-sub">
             {selected.rule === "Departure" ? "DEP" : "ARR"} · {STATE_LABELS[selected.state]} ·{" "}
             {Math.round(selected.ground_speed_kt)} kt
+            {(selected.state === "OnApproach" || selected.state === "Departed") &&
+              ` · ${Math.round(selected.altitude_ft)} ft · hdg ${Math.round(selected.heading_deg)}` +
+                (selected.assigned_heading_deg != null ? ` (vectored ${Math.round(selected.assigned_heading_deg)})` : "") +
+                (selected.assigned_altitude_ft != null ? ` · assigned ${Math.round(selected.assigned_altitude_ft)} ft` : "") +
+                (selected.assigned_speed_kt != null ? ` · assigned ${Math.round(selected.assigned_speed_kt)} kt` : "") +
+                (selected.state === "OnApproach" ? (selected.cleared_approach ? " · cleared" : " · not cleared") : "")}
           </div>
           <div className="clearance-buttons">
             {buttons.map((b) => (
@@ -249,6 +281,18 @@ export function ClearancePanel({
               Standby
             </button>
           </div>
+          {role === "approach" && (
+            <form className="command-entry" onSubmit={submitCommand}>
+              <input
+                type="text"
+                value={commandText}
+                onChange={(e) => setCommandText(e.target.value)}
+                placeholder="H270 · D30 · C50 · S210"
+                autoCapitalize="characters"
+              />
+              <button type="submit">Send</button>
+            </form>
+          )}
           {role === "ground" && (
             <div className="gate-picker">
               <span>Taxi to gate:</span>

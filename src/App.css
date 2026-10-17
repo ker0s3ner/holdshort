@@ -494,6 +494,19 @@ html, body, #root {
   flex: 1;
 }
 
+.command-entry {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.command-entry input {
+  flex: 1;
+  font-family: "SF Mono", Menlo, Consolas, monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
 .status-line {
   display: flex;
   align-items: center;

@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { SurfaceDisplay } from "./components/SurfaceDisplay";
 import { TowerCabView } from "./components/TowerCabView";
+import { ApproachView } from "./components/ApproachView";
 import { ClearancePanel } from "./components/ClearancePanel";
 import { TopBar } from "./components/TopBar";
 import { DepArrWindow } from "./components/DepArrWindow";
@@ -224,7 +225,14 @@ function App() {
         onDisconnect={exitToLauncher}
       />
       <div className="main-area">
-        {viewMode === "smr" ? (
+        {role === "approach" ? (
+          <ApproachView
+            airport={airport}
+            aircraft={aircraft}
+            selectedCallsign={selectedCallsign}
+            onSelectAircraft={setSelectedCallsign}
+          />
+        ) : viewMode === "smr" ? (
           <SurfaceDisplay
             airport={airport}
             aircraft={aircraft}
