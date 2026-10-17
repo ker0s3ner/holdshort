@@ -106,6 +106,9 @@ export interface AircraftSnapshot {
   assigned_altitude_ft: number | null;
   assigned_speed_kt: number | null;
   cleared_approach: boolean;
+  /** Which position actually owns this aircraft right now - a real
+   * handoff, even when the receiving position is AI-automated. */
+  owning_role: ControllerRole;
 }
 
 export interface SimTick {

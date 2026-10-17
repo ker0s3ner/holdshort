@@ -42,6 +42,10 @@ struct AircraftSnapshot {
     assigned_altitude_ft: Option<f64>,
     assigned_speed_kt: Option<f64>,
     cleared_approach: bool,
+    /// Which position is actually responsible for this aircraft right
+    /// now (AircraftState::owning_role) - a real controller handoff, even
+    /// when that position is AI-automated rather than human-played.
+    owning_role: ControllerRole,
 }
 
 #[derive(Serialize, Clone)]
@@ -692,6 +696,7 @@ fn build_snapshot(sim: &Simulation) -> SimTick {
             assigned_altitude_ft: ac.assigned_altitude_ft,
             assigned_speed_kt: ac.assigned_speed_kt,
             cleared_approach: ac.cleared_approach,
+            owning_role: ac.state.owning_role(),
         })
         .collect();
     SimTick {

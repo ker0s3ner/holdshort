@@ -7,12 +7,14 @@ import {
   getShowTaxiwayLabels,
 } from "../displaySettings";
 import { getRadarPalette, hexToRgbChannels } from "../radarPalette";
+import { HANDOFF_FLASH_MS, type HandoffEvent } from "../handoffTracking";
 
 interface Props {
   airport: AirportData;
   aircraft: AircraftSnapshot[];
   selectedCallsign: string | null;
   onSelectAircraft: (callsign: string | null) => void;
+  recentHandoffs: Map<string, HandoffEvent>;
 }
 
 const VIS_RING_METERS = 18_000; // ~10 statute miles, the default CRC clear-weather ring
@@ -154,12 +156,19 @@ function loadBasemapTiles(airport: AirportData, onTileLoaded: () => void): Basem
  * leader-line aircraft datablocks as the SMR display - matching how CRC's
  * Tower Cab mode actually works (a 2D plan view over imagery, not a 3D
  * out-the-window render). */
-export function TowerCabView({ airport, aircraft, selectedCallsign, onSelectAircraft }: Props) {
+export function TowerCabView({
+  airport,
+  aircraft,
+  selectedCallsign,
+  onSelectAircraft,
+  recentHandoffs,
+}: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const viewRef = useRef({ scale: 2.2, panX: 0, panY: 0 });
   const dragRef = useRef<{ x: number; y: number } | null>(null);
   const aircraftRef = useRef<AircraftSnapshot[]>(aircraft);
   const selectedRef = useRef<string | null>(selectedCallsign);
+  const handoffsRef = useRef(recentHandoffs);
 
   useEffect(() => {
     aircraftRef.current = aircraft;
@@ -167,6 +176,9 @@ export function TowerCabView({ airport, aircraft, selectedCallsign, onSelectAirc
   useEffect(() => {
     selectedRef.current = selectedCallsign;
   }, [selectedCallsign]);
+  useEffect(() => {
+    handoffsRef.current = recentHandoffs;
+  }, [recentHandoffs]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -421,6 +433,21 @@ export function TowerCabView({ airport, aircraft, selectedCallsign, onSelectAirc
           ctx.beginPath();
           ctx.arc(sx, sy, 11, 0, Math.PI * 2);
           ctx.stroke();
+        }
+
+        const handoff = handoffsRef.current.get(ac.callsign);
+        if (handoff) {
+          const age = Date.now() - handoff.at;
+          if (age < HANDOFF_FLASH_MS) {
+            const pulse = 0.4 + 0.6 * Math.abs(Math.sin(age / 220));
+            ctx.globalAlpha = pulse;
+            ctx.strokeStyle = palette.speakingRingDefault;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(sx, sy, 15, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.globalAlpha = 1;
+          }
         }
 
         if (datablockMode === "all" || isSelected) {

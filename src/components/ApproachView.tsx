@@ -1,12 +1,14 @@
 import { useEffect, useRef } from "react";
 import type { AirportData, AircraftSnapshot } from "../types";
 import { getRadarPalette } from "../radarPalette";
+import { HANDOFF_FLASH_MS, type HandoffEvent } from "../handoffTracking";
 
 interface Props {
   airport: AirportData;
   aircraft: AircraftSnapshot[];
   selectedCallsign: string | null;
   onSelectAircraft: (callsign: string | null) => void;
+  recentHandoffs: Map<string, HandoffEvent>;
 }
 
 const NM_TO_M = 1852.0;
@@ -29,12 +31,19 @@ function drawBlip(ctx: CanvasRenderingContext2D) {
  * the runway layout for reference, and every aircraft airborne or on
  * approach - the wide-area counterpart to the surface-only SMR/Tower Cab
  * views, for Approach's own vectoring work (and departures climbing out). */
-export function ApproachView({ airport, aircraft, selectedCallsign, onSelectAircraft }: Props) {
+export function ApproachView({
+  airport,
+  aircraft,
+  selectedCallsign,
+  onSelectAircraft,
+  recentHandoffs,
+}: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const viewRef = useRef({ scale: 0.004, panX: 0, panY: 0 });
   const dragRef = useRef<{ x: number; y: number } | null>(null);
   const aircraftRef = useRef<AircraftSnapshot[]>(aircraft);
   const selectedRef = useRef<string | null>(selectedCallsign);
+  const handoffsRef = useRef(recentHandoffs);
 
   useEffect(() => {
     aircraftRef.current = aircraft;
@@ -42,6 +51,9 @@ export function ApproachView({ airport, aircraft, selectedCallsign, onSelectAirc
   useEffect(() => {
     selectedRef.current = selectedCallsign;
   }, [selectedCallsign]);
+  useEffect(() => {
+    handoffsRef.current = recentHandoffs;
+  }, [recentHandoffs]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -143,6 +155,21 @@ export function ApproachView({ airport, aircraft, selectedCallsign, onSelectAirc
           ctx.beginPath();
           ctx.arc(sx, sy, 10, 0, Math.PI * 2);
           ctx.stroke();
+        }
+
+        const handoff = handoffsRef.current.get(ac.callsign);
+        if (handoff) {
+          const age = Date.now() - handoff.at;
+          if (age < HANDOFF_FLASH_MS) {
+            const pulse = 0.4 + 0.6 * Math.abs(Math.sin(age / 220));
+            ctx.globalAlpha = pulse;
+            ctx.strokeStyle = palette.speakingRingDefault;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(sx, sy, 14, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.globalAlpha = 1;
+          }
         }
 
         // Datablock: callsign / altitude (hundreds, real ATC convention) +

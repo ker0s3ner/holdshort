@@ -453,6 +453,18 @@ html, body, #root {
   margin-bottom: 6px;
 }
 
+.controller-line {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  color: var(--accent);
+  margin-top: 2px;
+}
+
+.controller-line.other {
+  color: var(--text-dim);
+}
+
 .clearance-buttons {
   display: grid;
   grid-template-columns: 1fr 1fr;

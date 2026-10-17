@@ -7,12 +7,14 @@ import {
   getShowTaxiwayLabels,
 } from "../displaySettings";
 import { getRadarPalette } from "../radarPalette";
+import { HANDOFF_FLASH_MS, type HandoffEvent } from "../handoffTracking";
 
 interface Props {
   airport: AirportData;
   aircraft: AircraftSnapshot[];
   selectedCallsign: string | null;
   onSelectAircraft: (callsign: string | null) => void;
+  recentHandoffs: Map<string, HandoffEvent>;
 }
 
 const EDGE_WIDTH: Record<string, number> = {
@@ -62,12 +64,19 @@ function destTag(icao: string): string {
  * pavement, building footprints, leader-line datablocks). Aircraft data
  * arrives ~4x/sec from the sim tick, so the draw loop reads it from a ref
  * rather than re-running the whole setup effect on every tick. */
-export function SurfaceDisplay({ airport, aircraft, selectedCallsign, onSelectAircraft }: Props) {
+export function SurfaceDisplay({
+  airport,
+  aircraft,
+  selectedCallsign,
+  onSelectAircraft,
+  recentHandoffs,
+}: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const viewRef = useRef({ scale: 2.2, panX: 0, panY: 0 });
   const dragRef = useRef<{ x: number; y: number } | null>(null);
   const aircraftRef = useRef<AircraftSnapshot[]>(aircraft);
   const selectedRef = useRef<string | null>(selectedCallsign);
+  const handoffsRef = useRef(recentHandoffs);
 
   useEffect(() => {
     aircraftRef.current = aircraft;
@@ -75,6 +84,9 @@ export function SurfaceDisplay({ airport, aircraft, selectedCallsign, onSelectAi
   useEffect(() => {
     selectedRef.current = selectedCallsign;
   }, [selectedCallsign]);
+  useEffect(() => {
+    handoffsRef.current = recentHandoffs;
+  }, [recentHandoffs]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -291,6 +303,25 @@ export function SurfaceDisplay({ airport, aircraft, selectedCallsign, onSelectAi
           ctx.beginPath();
           ctx.arc(sx, sy, 11, 0, Math.PI * 2);
           ctx.stroke();
+        }
+
+        // A just-handed-off aircraft gets a pulsing white ring for a few
+        // seconds - a real controller handoff, even when the receiving
+        // position is AI-automated, matching CRC's "blinks white for 5
+        // seconds on an accepted handoff" convention.
+        const handoff = handoffsRef.current.get(ac.callsign);
+        if (handoff) {
+          const age = Date.now() - handoff.at;
+          if (age < HANDOFF_FLASH_MS) {
+            const pulse = 0.4 + 0.6 * Math.abs(Math.sin(age / 220));
+            ctx.globalAlpha = pulse;
+            ctx.strokeStyle = palette.speakingRingDefault;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(sx, sy, 15, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.globalAlpha = 1;
+          }
         }
 
         // Leader line + stacked 3-line datablock, offset to the upper

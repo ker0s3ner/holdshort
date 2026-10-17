@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { SurfaceDisplay } from "./components/SurfaceDisplay";
@@ -20,6 +20,7 @@ import { isReadbackEnabled } from "./voiceSettings";
 import { enqueuePilotCalls } from "./pilotCalls";
 import { applyStoredTheme } from "./themeSettings";
 import { AVAILABLE_PLUGINS, isPluginEnabled } from "./pluginSettings";
+import { trackHandoffs, type HandoffEvent } from "./handoffTracking";
 import type { Profile } from "./profiles";
 import type {
   AircraftSnapshot,
@@ -60,6 +61,18 @@ function App() {
   const [installedVersion, setInstalledVersion] = useState(0);
   const [depArrOpen, setDepArrOpen] = useState(false);
   const [worldMapOpen, setWorldMapOpen] = useState(false);
+
+  // Tracks which position owns each aircraft tick over tick so a change -
+  // a real handoff, whether to the human or to an AI-automated position -
+  // gets a brief visual flash on the radar views instead of silently
+  // happening. The Map itself is handed down by reference and mutated in
+  // place; canvas views read it straight from their own draw loop rather
+  // than needing a React re-render for every flash to animate.
+  const prevOwnerRef = useRef(new Map<string, ControllerRole>());
+  const handoffsRef = useRef(new Map<string, HandoffEvent>());
+  useEffect(() => {
+    trackHandoffs(aircraft, prevOwnerRef.current, handoffsRef.current);
+  }, [aircraft]);
 
   useEffect(() => {
     invoke<AirportSummary[]>("list_installed")
@@ -231,6 +244,7 @@ function App() {
             aircraft={aircraft}
             selectedCallsign={selectedCallsign}
             onSelectAircraft={setSelectedCallsign}
+            recentHandoffs={handoffsRef.current}
           />
         ) : viewMode === "smr" ? (
           <SurfaceDisplay
@@ -238,6 +252,7 @@ function App() {
             aircraft={aircraft}
             selectedCallsign={selectedCallsign}
             onSelectAircraft={setSelectedCallsign}
+            recentHandoffs={handoffsRef.current}
           />
         ) : (
           <TowerCabView
@@ -245,6 +260,7 @@ function App() {
             aircraft={aircraft}
             selectedCallsign={selectedCallsign}
             onSelectAircraft={setSelectedCallsign}
+            recentHandoffs={handoffsRef.current}
           />
         )}
         <ClearancePanel

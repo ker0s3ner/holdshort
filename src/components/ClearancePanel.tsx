@@ -261,6 +261,14 @@ export function ClearancePanel({
             {selected.assigned_runway} ·{" "}
             {selected.rule === "Departure" ? `dest ${selected.destination}` : `from ${selected.origin}`}
           </div>
+          <div
+            className={
+              selected.owning_role === role ? "detail-line controller-line" : "detail-line controller-line other"
+            }
+          >
+            Controlled by {selected.owning_role.toUpperCase()}{" "}
+            {selected.owning_role === role ? "(you)" : "(AI)"}
+          </div>
           <div className="detail-line detail-line-sub">
             {selected.rule === "Departure" ? "DEP" : "ARR"} · {STATE_LABELS[selected.state]} ·{" "}
             {Math.round(selected.ground_speed_kt)} kt
