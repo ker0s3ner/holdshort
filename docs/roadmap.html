@@ -34,6 +34,11 @@
     <div class="roadmap-col">
       <span class="tag now">Shipped recently</span>
       <ul>
+        <li>A real Approach position — arrivals fly a ~18nm final with a real
+          altitude/speed/heading profile instead of spawning straight onto the
+          runway, vectoring clearances (heading, altitude, speed, cleared
+          approach), a CRC-style abbreviated command entry, and its own
+          range-ring radar scope</li>
         <li>Real position separation — ground can't issue a takeoff clearance just
           because the button exists; the backend checks who's actually responsible
           for an aircraft in its current phase</li>
@@ -51,7 +56,8 @@
     <div class="roadmap-col">
       <span class="tag next">Next</span>
       <ul>
-        <li>Playable Approach position (currently a read-only preview)</li>
+        <li>Sequencing/spacing between arrivals on approach — today each flies
+          its own final independently</li>
         <li>A write API for plugins — issuing clearances from plugin code, not
           just reading telemetry (a real sandboxing/trust problem on its own)</li>
         <li>More airports and countries, prioritized by request</li>
@@ -61,12 +67,14 @@
     <div class="roadmap-col">
       <span class="tag later">Later</span>
       <ul>
+        <li>Center/en-route control, beyond the terminal area Approach now covers
+          — a genuinely separate simulation domain (navaids, airways, sector
+          boundaries), not an extension of what exists</li>
         <li>Shared multiplayer sessions (a VATSIM-style shared network between
           separate Holdshort instances) — the World Traffic Map plugin is a preview
           of what this could look like, but today it only sees your own local
           session</li>
         <li>Windows build</li>
-        <li>Full Control/Departure position, beyond Ramp/Ground/Tower</li>
         <li>Paid Apple Developer signing, once the project can justify the cost</li>
       </ul>
     </div>
