@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { getMicDeviceId, getWhisperModel, getWhisperModelPath } from "./voiceSettings";
+import { spellCallsign } from "./speech";
 
 /** Records 16-bit PCM mono WAV from the mic using plain Web Audio (not
  * MediaRecorder, whose default codec varies by platform) so the bytes sent
@@ -120,8 +121,12 @@ export async function startListening() {
  * than transcribing as silence. */
 const MIN_SAMPLES_16K = 1600; // 0.1s
 
-/** Stops the recording and returns whisper.cpp's transcription of it. */
-export async function stopListeningAndTranscribe(): Promise<string> {
+/** Stops the recording and returns whisper.cpp's transcription of it. The
+ * active callsigns are passed through to bias the decoder's initial prompt
+ * toward the exact flight identifiers it's about to hear, spelled the way
+ * they're spoken on frequency ("American two three eight eight") - a large
+ * accuracy win for accented/jargon speech. */
+export async function stopListeningAndTranscribe(callsigns: string[] = []): Promise<string> {
   if (!active) throw new Error("not recording");
   const { wav, sampleCount } = active.stop();
   active = null;
@@ -129,9 +134,11 @@ export async function stopListeningAndTranscribe(): Promise<string> {
     throw new Error("recording too short - hold the key down a little longer");
   }
   const modelPath = getWhisperModelPath();
+  const callsignPrompt = callsigns.map((c) => spellCallsign(c)).join(", ");
   return invoke<string>("transcribe_audio", {
     wavBase64: bytesToBase64(wav),
     modelPath: modelPath || null,
     whisperModel: getWhisperModel(),
+    callsignPrompt: callsignPrompt || null,
   });
 }

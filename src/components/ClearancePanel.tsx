@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import type { AircraftSnapshot, AirportData, Clearance, ControllerRole } from "../types";
 import { frequencyFor } from "../frequencies";
 import { isRecording, startListening, stopListeningAndTranscribe } from "../stt";
-import { getPttKey, isSttEnabled } from "../voiceSettings";
-import { matchSpokenCallsign, spellCallsign } from "../speech";
+import { getOllamaModel, getPttKey, isSttEnabled } from "../voiceSettings";
+import { spellCallsign } from "../speech";
 import { speakOnChannel } from "../radio";
-import { parseClearance, parseCommand } from "../clearanceParser";
+import { parseCommand } from "../clearanceParser";
+import { resolveClearance } from "../intentParser";
 import { STATE_LABELS } from "../aircraftState";
 
 interface Props {
@@ -141,14 +143,14 @@ export function ClearancePanel({
     if (!isRecording()) return;
     setRecording(false);
     try {
-      const text = await stopListeningAndTranscribe();
-      const clearance = parseClearance(text);
-      const spokenCallsign = matchSpokenCallsign(
-        text,
-        aircraft.map((a) => a.callsign)
-      );
-      const target = spokenCallsign ?? selectedCallsign;
-      if (spokenCallsign && spokenCallsign !== selectedCallsign) onSelect(spokenCallsign);
+      const text = await stopListeningAndTranscribe(aircraft.map((a) => a.callsign));
+      // Resolve intent through the local LLM first (accent-tolerant, primed
+      // with the live roster), falling back to the regex parser whenever
+      // Ollama is unavailable/slow - so voice input never depends on it.
+      const llmCall = (prompt: string) => invoke<string>("ask_ai", { prompt, model: getOllamaModel() });
+      const { callsign, clearance } = await resolveClearance(text, aircraft, role, llmCall);
+      const target = callsign ?? selectedCallsign;
+      if (callsign && callsign !== selectedCallsign) onSelect(callsign);
 
       if (clearance && target) {
         try {

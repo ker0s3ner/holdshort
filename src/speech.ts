@@ -136,7 +136,12 @@ export function spellCallsign(callsign: string): string {
  * number, the same pieces spellCallsign() reads them out as, rather than
  * requiring the controller to click-select the aircraft before every
  * transmission. Real ATC clearances always restate the callsign; this is
- * just undoing spellCallsign() well enough to resolve it. */
+ * just undoing spellCallsign() well enough to resolve it.
+ *
+ * Tries an exact airline-name + digit-substring match first (cheap, zero
+ * false positives), then falls back to the accent/transcription-tolerant
+ * fuzzy matcher so a thick accent or a whisper slip ("Jet Blue two tree
+ * ate ate") still resolves. */
 export function matchSpokenCallsign(text: string, callsigns: string[]): string | null {
   const lower = text.toLowerCase();
   for (const callsign of callsigns) {
@@ -149,7 +154,132 @@ export function matchSpokenCallsign(text: string, callsigns: string[]): string |
       return callsign;
     }
   }
-  return null;
+  return fuzzyMatchCallsign(text, callsigns);
+}
+
+/** Digit words whisper (or a pilot) might say instead of bare digits,
+ * including the aviation "niner" and the "oh" people use for zero. */
+const SPOKEN_DIGITS: Record<string, string> = {
+  zero: "0", oh: "0", one: "1", two: "2", three: "3", four: "4",
+  five: "5", six: "6", seven: "7", eight: "8", nine: "9", niner: "9",
+};
+
+/** Rewrites spelled-out digit runs into actual digits, collapsing a run of
+ * adjacent digit words into one number: "flight level one eight zero" ->
+ * "flight level 180", "heading two seven zero" -> "heading 270", while
+ * leaving "five thousand" as "5 thousand" for the word-aware altitude
+ * parser. Any already-numeric tokens are preserved and merged into an
+ * adjacent spoken run too ("two 50" -> "250"). */
+export function wordsToDigits(text: string): string {
+  const tokens = text.toLowerCase().split(/\s+/);
+  const out: string[] = [];
+  let run = "";
+  const flush = () => {
+    if (run) {
+      out.push(run);
+      run = "";
+    }
+  };
+  for (const token of tokens) {
+    const clean = token.replace(/[.,]/g, "");
+    if (clean in SPOKEN_DIGITS) {
+      run += SPOKEN_DIGITS[clean];
+    } else if (/^\d+$/.test(clean)) {
+      run += clean;
+    } else {
+      flush();
+      out.push(token);
+    }
+  }
+  flush();
+  return out.join(" ");
+}
+
+/** Crude character-overlap similarity (Sørensen-Dice over bigrams), 0..1 -
+ * good enough to tell "jet blue" from "jetblue"/"jat blue" without pulling
+ * in a Levenshtein dependency. */
+function diceSimilarity(a: string, b: string): number {
+  if (a === b) return 1;
+  if (a.length < 2 || b.length < 2) return 0;
+  const bigrams = (s: string) => {
+    const grams = new Map<string, number>();
+    for (let i = 0; i < s.length - 1; i++) {
+      const g = s.slice(i, i + 2);
+      grams.set(g, (grams.get(g) ?? 0) + 1);
+    }
+    return grams;
+  };
+  const ga = bigrams(a);
+  const gb = bigrams(b);
+  let overlap = 0;
+  for (const [g, countA] of ga) {
+    const countB = gb.get(g);
+    if (countB) overlap += Math.min(countA, countB);
+  }
+  return (2 * overlap) / (a.length - 1 + (b.length - 1));
+}
+
+/** Accent/transcription-tolerant callsign resolver. Normalizes spelled-out
+ * digits, then scores every active callsign on how well its airline
+ * telephony name and flight number appear in the transcript, picking the
+ * best over a confidence floor. Tolerates a misheard airline name (fuzzy,
+ * not exact) and a flight number that's off by a digit, which is exactly
+ * what a thick accent or a short noisy clip produces. Returns null rather
+ * than guessing when nothing is close enough. */
+export function fuzzyMatchCallsign(text: string, callsigns: string[]): string | null {
+  const normalized = wordsToDigits(text).toLowerCase();
+  const digitRuns = normalized.match(/\d+/g) ?? [];
+  const words = normalized.split(/[^a-z]+/).filter(Boolean);
+
+  let best: string | null = null;
+  let bestScore = 0;
+
+  for (const callsign of callsigns) {
+    const match = callsign.match(/^([A-Z]{3})(\d+)([A-Z]?)$/);
+    if (!match) {
+      // Non-airline registration: only an exact (normalized) hit counts.
+      if (normalized.replace(/\s+/g, "").includes(callsign.toLowerCase())) {
+        return callsign;
+      }
+      continue;
+    }
+    const [, prefix, digits] = match;
+    const airline = (AIRLINES[prefix] ?? prefix).toLowerCase();
+    const airlineWords = airline.split(/\s+/);
+
+    // Airline-name score: best fuzzy hit of any airline word against any
+    // spoken word (handles "jat"/"jet", "united"->"united", splits like
+    // "jet blue").
+    let nameScore = 0;
+    for (const aw of airlineWords) {
+      for (const w of words) {
+        nameScore = Math.max(nameScore, diceSimilarity(aw, w));
+      }
+    }
+    // Also try the whole collapsed name against the collapsed transcript.
+    nameScore = Math.max(nameScore, normalized.includes(airline) ? 1 : 0);
+
+    // Flight-number score: exact digit-run hit is strongest; otherwise the
+    // closest run by similarity (off-by-one digit still scores high).
+    let numScore = 0;
+    for (const run of digitRuns) {
+      if (run === digits) {
+        numScore = 1;
+        break;
+      }
+      numScore = Math.max(numScore, diceSimilarity(run, digits));
+    }
+
+    // Require some evidence of both the airline and the number; weight the
+    // number more, since it's the disambiguator between same-airline flights.
+    if (nameScore < 0.4 || numScore < 0.4) continue;
+    const score = nameScore * 0.4 + numScore * 0.6;
+    if (score > bestScore) {
+      bestScore = score;
+      best = callsign;
+    }
+  }
+  return bestScore >= 0.55 ? best : null;
 }
 
 /** Rewrites every alphanumeric identifier found in free text (runway

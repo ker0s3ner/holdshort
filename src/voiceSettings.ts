@@ -15,9 +15,9 @@ const PTT_KEY_KEY = "holdshort.voice.pttKey";
 export const WHISPER_MODELS = [
   { id: "tiny.en", label: "Tiny — fastest, least accurate (~75MB)" },
   { id: "base.en", label: "Base — fast, basic accuracy (~142MB)" },
-  { id: "small.en", label: "Small — recommended (~466MB)" },
-  { id: "medium.en", label: "Medium — slower, more accurate (~1.5GB)" },
-  { id: "large-v3", label: "Large — best, heaviest, multilingual (~2.9GB)" },
+  { id: "small.en", label: "Small — fast, lighter accuracy (~466MB)" },
+  { id: "medium.en", label: "Medium — recommended, best for accents (~1.5GB)" },
+  { id: "large-v3", label: "Large — maximum accuracy, heaviest, multilingual (~2.9GB)" },
 ] as const;
 
 /** A spread of general-purpose Ollama models from smallest/fastest to
@@ -102,7 +102,7 @@ export function setWhisperModelPath(path: string) {
 /** Which WHISPER_MODELS ladder entry is selected - ignored if
  * getWhisperModelPath() is set, which overrides this with an exact path. */
 export function getWhisperModel(): string {
-  return getItem(WHISPER_MODEL_NAME_KEY, "small.en");
+  return getItem(WHISPER_MODEL_NAME_KEY, "medium.en");
 }
 
 export function setWhisperModel(model: string) {
