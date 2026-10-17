@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { getMicDeviceId, getWhisperModel, getWhisperModelPath } from "./voiceSettings";
 import { spellCallsign } from "./speech";
+import { resampleTo16k, normalizePeak, highPass } from "./audioProcessing";
 
 /** Records 16-bit PCM mono WAV from the mic using plain Web Audio (not
  * MediaRecorder, whose default codec varies by platform) so the bytes sent
@@ -20,10 +21,32 @@ class Recorder {
       );
     }
     const deviceId = getMicDeviceId();
+    // Constraints chosen for ASR, not for a phone call:
+    // - channelCount:1  whisper wants mono; forcing it avoids a stereo
+    //   downmix surprise and halves the data.
+    // - autoGainControl:true  the browser rides the mic level up for a quiet
+    //   or distant/accented speaker (our own peak-normalize below is a second
+    //   safety net, but AGC adapts during the utterance).
+    // - echoCancellation:false  there's no loudspeaker loop to cancel for a
+    //   push-to-talk mic; AEC only adds nonlinear processing that colors speech.
+    // - noiseSuppression:false  DELIBERATE: browser noise suppression is tuned
+    //   for telephony intelligibility and tends to gate/scrub the low-energy
+    //   consonant and fricative detail that ASR leans on, so it measurably
+    //   hurts transcription. We keep the raw signal and clean it ourselves.
+    const base: MediaTrackConstraints = {
+      channelCount: 1,
+      autoGainControl: true,
+      echoCancellation: false,
+      noiseSuppression: false,
+    };
     this.stream = await navigator.mediaDevices.getUserMedia({
-      audio: deviceId ? { deviceId: { exact: deviceId } } : true,
+      audio: deviceId ? { ...base, deviceId: { exact: deviceId } } : base,
     });
-    this.ctx = new AudioContext();
+    // Ask for a 16 kHz context so capture matches whisper's rate with no
+    // resampling at all. WKWebView (and most browsers) may ignore this and
+    // hand back the hardware rate (usually 48000); we read the real rate back
+    // and the anti-aliased resampleTo16k() in stop() handles whatever we got.
+    this.ctx = new AudioContext({ sampleRate: 16000 });
     this.sampleRate = this.ctx.sampleRate;
     this.source = this.ctx.createMediaStreamSource(this.stream);
     this.processor = this.ctx.createScriptProcessor(4096, 1, 1);
@@ -49,20 +72,15 @@ class Recorder {
       merged.set(c, offset);
       offset += c.length;
     }
-    const resampled = downsampleTo16k(merged, recordedRate);
-    return { wav: encodeWav16(resampled, 16000), sampleCount: resampled.length };
+    // Clean up the signal in the order that matters: strip DC/rumble, band-limit
+    // and resample to 16 kHz with anti-aliasing (the old code decimated with no
+    // low-pass, aliasing consonant detail into the speech band), then bring the
+    // level up to ~-1 dBFS so a quiet or accented speaker decodes reliably.
+    const hp = highPass(merged, recordedRate);
+    const resampled = resampleTo16k(hp, recordedRate);
+    const normalized = normalizePeak(resampled);
+    return { wav: encodeWav16(normalized, 16000), sampleCount: normalized.length };
   }
-}
-
-function downsampleTo16k(samples: Float32Array, fromRate: number): Float32Array {
-  if (fromRate === 16000) return samples;
-  const ratio = fromRate / 16000;
-  const outLength = Math.floor(samples.length / ratio);
-  const out = new Float32Array(outLength);
-  for (let i = 0; i < outLength; i++) {
-    out[i] = samples[Math.floor(i * ratio)];
-  }
-  return out;
 }
 
 function encodeWav16(samples: Float32Array, sampleRate: number): Uint8Array {

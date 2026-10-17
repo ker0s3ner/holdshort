@@ -607,19 +607,45 @@ async fn transcribe_audio(
     // training data and were getting misheard as unrelated words entirely
     // without this. -l en also stops it from occasionally guessing the
     // wrong language on a short, noisy clip and transcribing garbage.
-    const ATC_PROMPT: &str = "Air traffic control radio phraseology. Pushback approved. \
-         Taxi to runway via taxiway alpha, bravo, charlie. Hold short. Line up and wait. \
-         Cleared for takeoff. Cleared to land. Go around. Cancel clearance. Request taxi \
-         to gate. Climb and maintain. Descend and maintain flight level. Turn left heading. \
-         Reduce speed. Ready for departure. Runway vacated. Standby. Roger. Wilco. Heavy. Super.";
+    //
+    // Kept short on purpose: whisper's prompt budget is only ~224 tokens, and
+    // a long prompt both crowds out the live callsigns we append and can bias
+    // the decoder toward prompt vocabulary it then "hears" when it wasn't said.
+    // A concise domain hint is enough to flip it into ATC mode.
+    const ATC_PROMPT: &str = "Air traffic control radio phraseology: pushback, taxi, hold short, \
+         line up and wait, cleared for takeoff, cleared to land, climb and maintain, descend and \
+         maintain flight level, turn heading, reduce speed, go around, standby, roger, wilco.";
     // Appending the live callsigns primes the decoder with the exact flight
     // identifiers it's about to hear ("American two three eight eight"...),
     // which markedly improves recognition of accented/jargon speech - whisper
-    // biases toward vocabulary already present in the initial prompt.
+    // biases toward vocabulary already present in the initial prompt. We bound
+    // the total so prompt + callsigns can't blow past whisper's ~224-token
+    // budget (roughly 4 chars/token -> keep it under ~800 chars).
     let prompt = match callsign_prompt.as_deref().map(str::trim) {
         Some(cs) if !cs.is_empty() => format!("{ATC_PROMPT} Aircraft on frequency: {cs}."),
         _ => ATC_PROMPT.to_string(),
     };
+    const MAX_PROMPT_CHARS: usize = 800;
+    let prompt = if prompt.len() > MAX_PROMPT_CHARS {
+        // Trim on a char boundary so we never split a UTF-8 sequence.
+        let mut end = MAX_PROMPT_CHARS;
+        while end > 0 && !prompt.is_char_boundary(end) {
+            end -= 1;
+        }
+        prompt[..end].to_string()
+    } else {
+        prompt
+    };
+    // Threads: whisper is CPU-bound here. Use the available parallelism, but
+    // cap it so we don't starve the simulation/UI thread on big machines.
+    let threads = std::thread::available_parallelism()
+        .map(|n| n.get().clamp(1, 8))
+        .unwrap_or(4)
+        .to_string();
+    // Beam search (-bs) + best-of (-bo) trade a little latency for noticeably
+    // better accuracy on short, accented, domain-specific clips than the
+    // default greedy decode - the decoder explores several hypotheses and
+    // keeps the most likely one instead of committing to the first guess.
     let output = std::process::Command::new(whisper_cli)
         .args([
             "-m",
@@ -630,6 +656,12 @@ async fn transcribe_audio(
             "en",
             "--prompt",
             &prompt,
+            "-bs",
+            "5",
+            "-bo",
+            "5",
+            "-t",
+            &threads,
             "-nt",
             "-np",
         ])
