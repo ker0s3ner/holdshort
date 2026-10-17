@@ -286,7 +286,7 @@ fn find_executable(name: &str) -> Option<String> {
         .filter(|s| !s.is_empty())
 }
 
-const DEFAULT_WHISPER_MODEL: &str = "small.en";
+const DEFAULT_WHISPER_MODEL: &str = "medium.en";
 
 /// Maps a ladder entry (tiny.en/base.en/small.en/medium.en/large-v3) to
 /// its cached file path - every whisper.cpp ggml model follows this exact
@@ -569,6 +569,7 @@ async fn transcribe_audio(
     wav_base64: String,
     model_path: Option<String>,
     whisper_model: Option<String>,
+    callsign_prompt: Option<String>,
 ) -> Result<String, String> {
     use base64::Engine;
     let bytes = base64::engine::general_purpose::STANDARD
@@ -585,7 +586,7 @@ async fn transcribe_audio(
         return Err(format!(
             "No whisper model found at {model}. Install whisper.cpp with `brew install \
              whisper-cpp`, then download a model from Settings → Voice, or `curl -L -o {model} \
-             https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.en.bin` \
+             https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-medium.en.bin` \
              (create the ~/.cache/whisper folder first)."
         ));
     }
@@ -614,7 +615,16 @@ async fn transcribe_audio(
     const ATC_PROMPT: &str = "Air traffic control radio phraseology. Pushback approved. \
          Taxi to runway via taxiway alpha, bravo, charlie. Hold short. Line up and wait. \
          Cleared for takeoff. Cleared to land. Go around. Cancel clearance. Request taxi \
-         to gate. Ready for departure. Runway vacated. Standby. Roger. Wilco. Heavy. Super.";
+         to gate. Climb and maintain. Descend and maintain flight level. Turn left heading. \
+         Reduce speed. Ready for departure. Runway vacated. Standby. Roger. Wilco. Heavy. Super.";
+    // Appending the live callsigns primes the decoder with the exact flight
+    // identifiers it's about to hear ("American two three eight eight"...),
+    // which markedly improves recognition of accented/jargon speech - whisper
+    // biases toward vocabulary already present in the initial prompt.
+    let prompt = match callsign_prompt.as_deref().map(str::trim) {
+        Some(cs) if !cs.is_empty() => format!("{ATC_PROMPT} Aircraft on frequency: {cs}."),
+        _ => ATC_PROMPT.to_string(),
+    };
     let output = std::process::Command::new(whisper_cli)
         .args([
             "-m",
@@ -624,7 +634,7 @@ async fn transcribe_audio(
             "-l",
             "en",
             "--prompt",
-            ATC_PROMPT,
+            &prompt,
             "-nt",
             "-np",
         ])
