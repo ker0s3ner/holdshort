@@ -259,16 +259,29 @@ export function composeReply(from: ControllerRole, text: string): string {
   if (/\bRUNWAY\b|\bRWY\b|\bCONFIG\b|\bFLOW\b/.test(t)) {
     return `${tag}copy, ${roleLabel(from)} using the same.`;
   }
+  if (/\b(CLIMB|DESCEND|DIRECT|TURN|VECTOR|HIGHER|LOWER|SPEED)\b/.test(t)) {
+    return `${tag}${pick(t, ["approved.", "that's approved.", "your discretion."])}`;
+  }
   if (/\bSTANDBY\b|\bWAIT\b|\bBUSY\b/.test(t)) {
     return `${tag}standby.`;
   }
+  // An unmatched question still gets a believable coordination answer -
+  // varied by content so the net doesn't parrot one word back.
   if (t.includes("?")) {
-    return `${tag}affirm.`;
+    return `${tag}${pick(t, ["affirm.", "that's affirm.", "roger that.", "standby, checking."])}`;
   }
-  // Plain acknowledgement - vary deterministically on text length so the
-  // net doesn't read as one canned phrase.
-  const acks = ["roger.", "copy.", "c."];
-  return `${tag}${acks[text.length % acks.length]}`;
+  // Plain acknowledgement - vary deterministically by content so the net
+  // doesn't read as one canned phrase.
+  return `${tag}${pick(t, ["roger.", "copy.", "c."])}`;
+}
+
+/** Deterministic choice from a list, keyed on the message text, so the same
+ * message always draws the same reply but different messages spread across
+ * the set instead of all landing on one phrase. */
+function pick(text: string, options: string[]): string {
+  let h = 0;
+  for (let i = 0; i < text.length; i++) h = (h * 31 + text.charCodeAt(i)) >>> 0;
+  return options[h % options.length];
 }
 
 /** Drop an unprompted coordination message from an AI position onto the

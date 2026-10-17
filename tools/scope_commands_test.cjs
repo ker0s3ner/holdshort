@@ -275,6 +275,12 @@ async function run(line) {
   check("reply: verify", cm.composeReply("ground", "verify UAL123 at the gate") === "UAL123, affirm.", cm.composeReply("ground", "verify UAL123 at the gate"));
   check("reply: traffic", cm.composeReply("approach", "any traffic for 25R?") === "no conflict observed.", cm.composeReply("approach", "any traffic for 25R?"));
   check("reply: plain ack has no callsign tag", /^(roger\.|copy\.|c\.)$/.test(cm.composeReply("ground", "thanks")), cm.composeReply("ground", "thanks"));
+  check("reply: climb/turn request approved", /\bapproved\.|discretion\.$/.test(cm.composeReply("approach", "can I turn UAL123 left?")), cm.composeReply("approach", "can I turn UAL123 left?"));
+  // The old blanket "?"->affirm is gone: unmatched questions vary by content
+  // rather than all parroting "affirm".
+  const q1 = cm.composeReply("ground", "you got him?");
+  const q2 = cm.composeReply("ground", "all set over there?");
+  check("reply: unmatched questions are not all 'affirm.'", !(q1 === "affirm." && q2 === "affirm.") || q1 !== q2, { q1, q2 });
 
   // sendMessage flow + deterministic reply delivery
   cm._resetMessaging();
