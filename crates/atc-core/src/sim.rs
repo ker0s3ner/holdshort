@@ -1,9 +1,10 @@
-use crate::aircraft::{Aircraft, AircraftState, ControllerRole, FlightPlan, FlightRule};
+use crate::aircraft::{Aircraft, AircraftState, ControllerRole, FlightPlan, FlightRule, WakeCategory};
 use crate::clearance::{Clearance, ClearanceCommand};
 use crate::graph::TaxiGraph;
 use crate::model::AirportData;
 use serde::Serialize;
 use std::collections::HashMap;
+use crate::training::{evaluate_safety, TrainingEvent, TrainingEventKind, TrainingState};
 
 const KT_TO_MPS: f64 = 0.514444;
 const TAXI_SPEED_KT: f64 = 15.0;
@@ -61,6 +62,7 @@ pub struct Simulation {
     pub graph: TaxiGraph,
     pub aircraft: HashMap<String, Aircraft>,
     pub clock_s: f64,
+    pub training: TrainingState,
 }
 
 impl Simulation {
@@ -72,7 +74,19 @@ impl Simulation {
             graph,
             aircraft: HashMap::new(),
             clock_s,
+            training: TrainingState::new(true),
         }
+    }
+
+    pub fn drain_training_events(&mut self, after_id: u64) -> Vec<TrainingEvent> {
+        self.training.events.iter().filter(|event| event.id > after_id).cloned().collect()
+    }
+
+    fn runway_clear_for(&self, callsign: &str, runway: &str) -> bool {
+        !self.aircraft.values().any(|other| {
+            other.callsign != callsign && other.flight_plan.assigned_runway == runway &&
+                matches!(other.state, AircraftState::LinedUp | AircraftState::TakeoffRoll | AircraftState::LandingRollout)
+        })
     }
 
     pub fn gate_node(&self, gate_ref: &str) -> Option<String> {
@@ -143,6 +157,12 @@ impl Simulation {
                 destination: "----".to_string(),
                 assigned_runway: runway_ref.to_string(),
                 assigned_gate: gate_ref.to_string(),
+                squawk: "2100".to_string(),
+                route: format!("{} DCT", self.airport.icao),
+                sid: Some(format!("{} SID", departure_end)),
+                star: None,
+                remarks: String::new(),
+                wake_category: WakeCategory::Medium,
             },
             route,
             route_index: 0,
@@ -229,6 +249,12 @@ impl Simulation {
                 destination: self.airport.icao.clone(),
                 assigned_runway: runway_ref.to_string(),
                 assigned_gate: gate_ref.to_string(),
+                squawk: "4300".to_string(),
+                route: format!("DCT {}", self.airport.icao),
+                sid: None,
+                star: Some(format!("{} STAR", landing_end)),
+                remarks: String::new(),
+                wake_category: WakeCategory::Medium,
             },
             route,
             route_index: 0,
@@ -296,6 +322,13 @@ impl Simulation {
             Some(route)
         } else {
             None
+        };
+
+        let runway_is_clear = if matches!(cmd.clearance, Clearance::ClearedForTakeoff | Clearance::ClearedToLand) {
+            let requested = self.aircraft.get(&cmd.callsign).map(|ac| (ac.callsign.clone(), ac.flight_plan.assigned_runway.clone()));
+            requested.map(|(callsign, runway)| self.runway_clear_for(&callsign, &runway)).unwrap_or(false)
+        } else {
+            true
         };
 
         let ac = self
@@ -385,6 +418,11 @@ impl Simulation {
                 ac.ready_since_s = None;
             }
             Clearance::ClearedForTakeoff => {
+                if !runway_is_clear {
+                    let message = format!("{} rejected: runway {} is occupied", ac.callsign, ac.flight_plan.assigned_runway);
+                    self.training.record(self.clock_s, TrainingEventKind::UnsafeClearance, vec![ac.callsign.clone()], message.clone(), 3);
+                    if self.training.strict_safety { return Err(message); }
+                }
                 ac.hold_short_node = None;
                 ac.cleared_for_takeoff = true;
                 ac.state = AircraftState::TakeoffRoll;
@@ -392,6 +430,11 @@ impl Simulation {
                 ac.ready_since_s = None;
             }
             Clearance::ClearedToLand => {
+                if !runway_is_clear {
+                    let message = format!("{} rejected: runway {} is occupied", ac.callsign, ac.flight_plan.assigned_runway);
+                    self.training.record(self.clock_s, TrainingEventKind::UnsafeClearance, vec![ac.callsign.clone()], message.clone(), 3);
+                    if self.training.strict_safety { return Err(message); }
+                }
                 ac.cleared_to_land = true;
             }
             Clearance::GoAround => {
@@ -606,6 +649,9 @@ impl Simulation {
         for cs in done {
             self.aircraft.remove(&cs);
         }
+
+        let aircraft: Vec<&crate::aircraft::Aircraft> = self.aircraft.values().collect();
+        evaluate_safety(&aircraft, self.clock_s, &mut self.training);
 
         events
     }

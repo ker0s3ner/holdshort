@@ -1,7 +1,8 @@
-use crate::aircraft::AircraftState;
+use crate::aircraft::{AircraftState, WakeCategory};
 use crate::sim::{SimEvent, Simulation};
 use rand::seq::{IteratorRandom, SliceRandom};
-use rand::Rng;
+use rand::{Rng, SeedableRng};
+use rand::rngs::StdRng;
 use serde::{Deserialize, Serialize};
 
 /// One runway end tower has configured for use, and for what - a real
@@ -113,16 +114,29 @@ pub struct TrafficGenerator {
     pub spawn_interval_s: f64,
     airlines: &'static [Airline],
     other_airports: &'static [&'static str],
+    rng: StdRng,
+    pub arrival_spacing_nm: f64,
 }
 
 impl TrafficGenerator {
     pub fn new(spawn_interval_s: f64, airport_icao: &str) -> Self {
+        let seed = airport_icao.bytes().fold(0x9E37_79B9_u64, |hash, byte| hash.rotate_left(5) ^ byte as u64);
+        Self::new_with_seed_and_spacing(spawn_interval_s, airport_icao, seed, 8.0)
+    }
+
+    pub fn new_with_seed(spawn_interval_s: f64, airport_icao: &str, seed: u64) -> Self {
+        Self::new_with_seed_and_spacing(spawn_interval_s, airport_icao, seed, 8.0)
+    }
+
+    pub fn new_with_seed_and_spacing(spawn_interval_s: f64, airport_icao: &str, seed: u64, arrival_spacing_nm: f64) -> Self {
         let (airlines, other_airports) = region_pools(airport_icao);
         TrafficGenerator {
             next_spawn_in_s: spawn_interval_s,
             spawn_interval_s,
             airlines,
             other_airports,
+            rng: StdRng::seed_from_u64(seed),
+            arrival_spacing_nm,
         }
     }
 
@@ -155,7 +169,7 @@ impl TrafficGenerator {
             })
         };
 
-        let mut rng = rand::thread_rng();
+        let mut rng = &mut self.rng;
         let dep_candidates: Vec<&RunwayUse> =
             runways.iter().filter(|r| r.dep && !is_occupied(&r.rwy_ref)).collect();
         let arr_candidates: Vec<&RunwayUse> =
@@ -177,6 +191,20 @@ impl TrafficGenerator {
         };
         let runway_ref = chosen.rwy_ref.as_str();
         let departure_end = chosen.end.as_str();
+        if is_arrival && sim.aircraft.values().any(|aircraft| {
+            aircraft.flight_plan.assigned_runway == runway_ref
+                && matches!(aircraft.state, AircraftState::OnApproach | AircraftState::LandingRollout)
+                && {
+                    let dx = aircraft.x - sim.graph.nodes[&aircraft.route[0]].x;
+                    let dy = aircraft.y - sim.graph.nodes[&aircraft.route[0]].y;
+                    (dx * dx + dy * dy).sqrt() < self.arrival_spacing_nm * 1852.0
+                }
+        }) {
+            // Keep arrivals separated on the same final. A scenario can
+            // still inject tighter spacing deliberately; procedural traffic
+            // should not manufacture a conflict by default.
+            return None;
+        }
         let occupied: Vec<String> = sim
             .aircraft
             .values()
@@ -227,6 +255,11 @@ impl TrafficGenerator {
             {
                 if let Some(ac) = sim.aircraft.get_mut(&callsign) {
                     ac.flight_plan.origin = other_airport.to_string();
+                    ac.flight_plan.wake_category = match wake_category {
+                        Some('H') => WakeCategory::Heavy,
+                        _ => WakeCategory::Medium,
+                    };
+                    ac.flight_plan.remarks = "PROCEDURAL TRAFFIC".to_string();
                 }
             }
             None
@@ -235,6 +268,11 @@ impl TrafficGenerator {
         {
             if let Some(ac) = sim.aircraft.get_mut(&callsign) {
                 ac.flight_plan.destination = other_airport.to_string();
+                ac.flight_plan.wake_category = match wake_category {
+                    Some('H') => WakeCategory::Heavy,
+                    _ => WakeCategory::Medium,
+                };
+                ac.flight_plan.remarks = "PROCEDURAL TRAFFIC".to_string();
             }
             Some(SimEvent {
                 callsign,

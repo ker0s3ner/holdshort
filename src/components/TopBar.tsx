@@ -30,6 +30,10 @@ interface Props {
   worldMapEnabled: boolean;
   worldMapOpen: boolean;
   onToggleWorldMap: () => void;
+  trainingEventCount: number;
+  onOpenTraining: () => void;
+  paused: boolean;
+  onTogglePause: () => void;
   installedAirports: AirportSummary[];
   onSwitchStation: (icao: string, role: ControllerRole) => void;
   onDisconnect: () => void;
@@ -62,6 +66,10 @@ export function TopBar({
   worldMapEnabled,
   worldMapOpen,
   onToggleWorldMap,
+  trainingEventCount,
+  onOpenTraining,
+  paused,
+  onTogglePause,
   installedAirports,
   onSwitchStation,
   onDisconnect,
@@ -274,6 +282,10 @@ export function TopBar({
           >
             Dep/Arr
           </button>
+          <button className={`tb-menu-trigger ${trainingEventCount ? "training-alert" : ""}`} onClick={onOpenTraining}>
+            ⚠ {trainingEventCount}
+          </button>
+          <button className="tb-menu-trigger" onClick={onTogglePause}>{paused ? "▶ Resume" : "Ⅱ Pause"}</button>
           {worldMapEnabled && (
             <button
               className={worldMapOpen ? "tb-menu-trigger active" : "tb-menu-trigger"}

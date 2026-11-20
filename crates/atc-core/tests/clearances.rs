@@ -256,3 +256,22 @@ fn resume_taxi_clears_hold_short_and_proceeds() {
         "aircraft advances past the former hold-short node"
     );
 }
+
+#[test]
+fn second_takeoff_clearance_is_rejected_while_runway_is_occupied() {
+    let mut sim = load_sim();
+    let gate_a = sim.airport.parking_positions[0].ref_.clone();
+    let gate_b = sim.airport.parking_positions[1].ref_.clone();
+    sim.spawn_departure("RWY1", "A320", &gate_a, "15/33", "15").unwrap();
+    sim.spawn_departure("RWY2", "B738", &gate_b, "15/33", "15").unwrap();
+    sim.aircraft.get_mut("RWY1").unwrap().state = AircraftState::HoldingShort;
+    sim.aircraft.get_mut("RWY2").unwrap().state = AircraftState::HoldingShort;
+
+    issue(&mut sim, "RWY1", Clearance::ClearedForTakeoff, ControllerRole::Tower);
+    let result = sim.apply_clearance(
+        ClearanceCommand { callsign: "RWY2".into(), clearance: Clearance::ClearedForTakeoff },
+        ControllerRole::Tower,
+    );
+    assert!(result.is_err());
+    assert!(sim.training.events.iter().any(|event| matches!(event.kind, atc_core::TrainingEventKind::UnsafeClearance)));
+}

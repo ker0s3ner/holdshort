@@ -52,8 +52,9 @@ export function DepArrWindow({ aircraft, onClose, onSelect }: Props) {
               </span>
               <span className="dep-arr-row-detail">
                 {a.aircraft_type} · gate {a.assigned_gate || "—"} · rwy{" "}
-                {a.assigned_runway || "—"} · {STATE_LABELS[a.state] ?? a.state}
+                {a.assigned_runway || "—"} · sq {a.squawk || "—"} · {a.wake_category || "—"} · {STATE_LABELS[a.state] ?? a.state}
               </span>
+              {a.route && <span className="dep-arr-row-detail">route {a.route}{a.sid ? ` · ${a.sid}` : ""}</span>}
             </button>
           ))}
         </div>
@@ -68,8 +69,9 @@ export function DepArrWindow({ aircraft, onClose, onSelect }: Props) {
               </span>
               <span className="dep-arr-row-detail">
                 {a.aircraft_type} · gate {a.assigned_gate || "—"} · rwy{" "}
-                {a.assigned_runway || "—"} · {STATE_LABELS[a.state] ?? a.state}
+                {a.assigned_runway || "—"} · sq {a.squawk || "—"} · {a.wake_category || "—"} · {STATE_LABELS[a.state] ?? a.state}
               </span>
+              {a.route && <span className="dep-arr-row-detail">route {a.route}{a.star ? ` · ${a.star}` : ""}</span>}
             </button>
           ))}
         </div>

@@ -1,6 +1,6 @@
 use atc_core::clearance::{Clearance, ClearanceCommand};
 use atc_core::model::AirportData;
-use atc_core::{airports, AircraftState, ControllerRole, Simulation};
+use atc_core::{airports, AircraftState, ControllerRole, RunwayUse, Simulation, TrafficGenerator};
 use std::path::Path;
 
 #[test]
@@ -93,6 +93,28 @@ fn full_departure_cycle_on_real_kbur_layout() {
         !sim.aircraft.contains_key("TEST1"),
         "aircraft should depart the surface simulation after takeoff"
     );
+}
+
+#[test]
+fn scenarios_and_seeded_traffic_are_reproducible() {
+    let scenarios = atc_core::built_in_scenarios();
+    assert!(scenarios.iter().any(|scenario| scenario.id == "approach-spacing"));
+    assert!(scenarios.iter().any(|scenario| !scenario.strict_safety));
+
+    let mut left = Simulation::new(airports::load(Path::new("."), "KBUR").unwrap());
+    let mut right = Simulation::new(airports::load(Path::new("."), "KBUR").unwrap());
+    let runways = vec![RunwayUse { rwy_ref: "15/33".into(), end: "15".into(), dep: true, arr: true }];
+    let mut left_traffic = TrafficGenerator::new_with_seed_and_spacing(1.0, "KBUR", 42, 8.0);
+    let mut right_traffic = TrafficGenerator::new_with_seed_and_spacing(1.0, "KBUR", 42, 8.0);
+    for _ in 0..8 {
+        left_traffic.tick(1.0, &mut left, &runways);
+        right_traffic.tick(1.0, &mut right, &runways);
+    }
+    let mut left_callsigns: Vec<_> = left.aircraft.keys().cloned().collect();
+    let mut right_callsigns: Vec<_> = right.aircraft.keys().cloned().collect();
+    left_callsigns.sort();
+    right_callsigns.sort();
+    assert_eq!(left_callsigns, right_callsigns);
 }
 
 /// Every airport data file in the repo should stay gate-to-runway routable,

@@ -6,6 +6,15 @@ pub enum FlightRule {
     Arrival,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "UPPERCASE")]
+pub enum WakeCategory {
+    Light,
+    Medium,
+    Heavy,
+    Super,
+}
+
 /// The position the human controller is actually working this session.
 /// Every other position runs on a simple AI timer (see
 /// Simulation::apply_automation) so a single-position session still
@@ -70,6 +79,12 @@ pub struct FlightPlan {
     pub destination: String,
     pub assigned_runway: String,
     pub assigned_gate: String,
+    pub squawk: String,
+    pub route: String,
+    pub sid: Option<String>,
+    pub star: Option<String>,
+    pub remarks: String,
+    pub wake_category: WakeCategory,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

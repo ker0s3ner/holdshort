@@ -2,7 +2,7 @@ use atc_core::airports::AirportSummary;
 use atc_core::clearance::ClearanceCommand;
 use atc_core::{
     airports, AircraftState, AirportData, ControllerRole, FlightRule, RunwayUse, Simulation,
-    TrafficGenerator,
+    TrafficGenerator, TrainingEvent,
 };
 use serde::Serialize;
 use std::path::PathBuf;
@@ -14,12 +14,14 @@ struct AppState {
     sim: Mutex<Simulation>,
     traffic: Mutex<TrafficGenerator>,
     active: Mutex<bool>,
+    paused: Mutex<bool>,
     /// Every runway end tower has configured for use right now - a real
     /// airport can run several at once (or both ends of one, opposite
     /// directions), each serving departures, arrivals, or both.
     runways: Mutex<Vec<RunwayUse>>,
     role: Mutex<ControllerRole>,
     data_dir: PathBuf,
+    scenario: Mutex<atc_core::ScenarioDefinition>,
 }
 
 #[derive(Serialize, Clone)]
@@ -46,12 +48,19 @@ struct AircraftSnapshot {
     /// now (AircraftState::owning_role) - a real controller handoff, even
     /// when that position is AI-automated rather than human-played.
     owning_role: ControllerRole,
+    squawk: String,
+    route: String,
+    sid: Option<String>,
+    star: Option<String>,
+    remarks: String,
+    wake_category: atc_core::WakeCategory,
 }
 
 #[derive(Serialize, Clone)]
 struct SimTick {
     clock_s: f64,
     aircraft: Vec<AircraftSnapshot>,
+    training_events: Vec<TrainingEvent>,
 }
 
 /// Airports installed on this machine right now - no network needed. This
@@ -66,6 +75,11 @@ fn list_installed(state: tauri::State<AppState>) -> Vec<AirportSummary> {
 #[tauri::command]
 async fn list_catalog() -> Result<Vec<AirportSummary>, String> {
     airports::fetch_catalog().await
+}
+
+#[tauri::command]
+fn list_scenarios() -> Vec<atc_core::ScenarioDefinition> {
+    atc_core::built_in_scenarios()
 }
 
 #[tauri::command]
@@ -88,7 +102,9 @@ fn start_session(
     state: tauri::State<AppState>,
     icao: String,
     role: ControllerRole,
+    scenario_id: Option<String>,
 ) -> Result<(), String> {
+    let scenario = atc_core::find_scenario(scenario_id.as_deref());
     let airport = airports::load(&state.data_dir, &icao)?;
     let (rwy_ref, departure_end) = airport
         .runways
@@ -104,10 +120,21 @@ fn start_session(
     // just means more of that traffic can actually get moving instead of
     // queuing on one.
     let gate_count = airport.parking_positions.len().max(1) as f64;
-    let spawn_interval_s = (2200.0 / gate_count).clamp(40.0, 150.0);
+    let spawn_interval_s = if scenario.id == "free-play" {
+        (2200.0 / gate_count).clamp(40.0, 150.0)
+    } else {
+        scenario.spawn_interval_s
+    };
 
     *state.sim.lock().unwrap() = Simulation::new(airport);
-    *state.traffic.lock().unwrap() = TrafficGenerator::new(spawn_interval_s, &icao);
+    state.sim.lock().unwrap().training.strict_safety = scenario.strict_safety;
+    let seed = 0x9E37_79B9_u64 ^ scenario.id.bytes().fold(0u64, |hash, byte| hash.rotate_left(5) ^ byte as u64);
+    *state.traffic.lock().unwrap() = TrafficGenerator::new_with_seed_and_spacing(
+        spawn_interval_s,
+        &icao,
+        seed,
+        scenario.arrival_spacing_nm,
+    );
     *state.runways.lock().unwrap() = vec![RunwayUse {
         rwy_ref,
         end: departure_end,
@@ -115,6 +142,8 @@ fn start_session(
         arr: true,
     }];
     *state.role.lock().unwrap() = role;
+    *state.paused.lock().unwrap() = false;
+    *state.scenario.lock().unwrap() = scenario;
     *state.active.lock().unwrap() = true;
     Ok(())
 }
@@ -122,6 +151,12 @@ fn start_session(
 #[tauri::command]
 fn end_session(state: tauri::State<AppState>) {
     *state.active.lock().unwrap() = false;
+    *state.paused.lock().unwrap() = false;
+}
+
+#[tauri::command]
+fn set_session_paused(state: tauri::State<AppState>, paused: bool) {
+    *state.paused.lock().unwrap() = paused;
 }
 
 #[tauri::command]
@@ -734,11 +769,18 @@ fn build_snapshot(sim: &Simulation) -> SimTick {
             assigned_speed_kt: ac.assigned_speed_kt,
             cleared_approach: ac.cleared_approach,
             owning_role: ac.state.owning_role(),
+            squawk: ac.flight_plan.squawk.clone(),
+            route: ac.flight_plan.route.clone(),
+            sid: ac.flight_plan.sid.clone(),
+            star: ac.flight_plan.star.clone(),
+            remarks: ac.flight_plan.remarks.clone(),
+            wake_category: ac.flight_plan.wake_category,
         })
         .collect();
     SimTick {
         clock_s: sim.clock_s,
         aircraft,
+        training_events: sim.training.events.clone(),
     }
 }
 
@@ -762,6 +804,7 @@ pub fn run() {
                 sim: Mutex::new(sim),
                 traffic: Mutex::new(traffic),
                 active: Mutex::new(false),
+                paused: Mutex::new(false),
                 runways: Mutex::new(vec![RunwayUse {
                     rwy_ref: "15/33".to_string(),
                     end: "15".to_string(),
@@ -770,6 +813,7 @@ pub fn run() {
                 }]),
                 role: Mutex::new(ControllerRole::Ground),
                 data_dir,
+                scenario: Mutex::new(atc_core::find_scenario(None)),
             });
 
             let app_handle = app.handle().clone();
@@ -787,6 +831,9 @@ pub fn run() {
                     if !*state.active.lock().unwrap() {
                         continue;
                     }
+                    if *state.paused.lock().unwrap() {
+                        continue;
+                    }
                     let mut sim = state.sim.lock().unwrap();
                     let mut traffic = state.traffic.lock().unwrap();
                     let runways = state.runways.lock().unwrap();
@@ -794,6 +841,7 @@ pub fn run() {
                     drop(runways);
                     let mut pilot_events = sim.tick(dt);
                     sim.apply_automation(*state.role.lock().unwrap());
+                    let training_events = sim.training.events.clone();
                     drop(traffic);
                     pilot_events.extend(spawn_event);
                     // Pilots calling in unprompted shouldn't wait for the
@@ -801,6 +849,9 @@ pub fn run() {
                     // moment they happen so the radio stays responsive.
                     if !pilot_events.is_empty() {
                         let _ = app_handle.emit("sim-event", pilot_events);
+                    }
+                    if let Some(latest) = training_events.last() {
+                        let _ = app_handle.emit("training-event", latest.clone());
                     }
 
                     ticks_since_emit += 1;
@@ -820,11 +871,13 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             list_installed,
             list_catalog,
+            list_scenarios,
             is_installed,
             install_airport,
             uninstall_airport,
             start_session,
             end_session,
+            set_session_paused,
             get_airport,
             issue_clearance,
             set_speaking,

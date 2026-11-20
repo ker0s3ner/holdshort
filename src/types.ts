@@ -109,11 +109,34 @@ export interface AircraftSnapshot {
   /** Which position actually owns this aircraft right now - a real
    * handoff, even when the receiving position is AI-automated. */
   owning_role: ControllerRole;
+  squawk?: string;
+  route?: string;
+  sid?: string | null;
+  star?: string | null;
+  remarks?: string;
+  wake_category?: "LIGHT" | "MEDIUM" | "HEAVY" | "SUPER";
 }
 
 export interface SimTick {
   clock_s: number;
   aircraft: AircraftSnapshot[];
+  training_events: TrainingEvent[];
+}
+
+export type TrainingEventKind =
+  | "runway_conflict"
+  | "runway_incursion"
+  | "taxi_conflict"
+  | "loss_of_separation"
+  | "unsafe_clearance";
+
+export interface TrainingEvent {
+  id: number;
+  clock_s: number;
+  kind: TrainingEventKind;
+  callsigns: string[];
+  message: string;
+  severity: number;
 }
 
 /** A pilot calling up unprompted - ready for pushback, holding short and
@@ -127,6 +150,16 @@ export interface AirportSummary {
   icao: string;
   name: string;
   region: string;
+}
+
+export interface ScenarioSummary {
+  id: string;
+  name: string;
+  description: string;
+  recommended_role: ControllerRole;
+  spawn_interval_s: number;
+  arrival_spacing_nm: number;
+  strict_safety: boolean;
 }
 
 export type ControllerRole = "ramp" | "ground" | "tower" | "approach";
