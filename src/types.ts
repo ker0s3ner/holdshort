@@ -152,16 +152,6 @@ export interface AirportSummary {
   region: string;
 }
 
-export interface ScenarioSummary {
-  id: string;
-  name: string;
-  description: string;
-  recommended_role: ControllerRole;
-  spawn_interval_s: number;
-  arrival_spacing_nm: number;
-  strict_safety: boolean;
-}
-
 export type ControllerRole = "ramp" | "delivery" | "ground" | "tower" | "approach" | "center";
 
 export type Clearance =

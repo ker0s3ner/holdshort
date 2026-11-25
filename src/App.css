@@ -1001,9 +1001,6 @@ button.dcb-menu-item:hover {
 .replay-controls { display: grid; gap: 6px; margin: 10px 0; }
 .replay-controls input { width: 100%; }
 .training-objectives { display: grid; gap: 4px; margin: 8px 0 12px; color: var(--text-dim); font-size: 12px; }
-.scenario-picker { display: grid; gap: 5px; margin: 14px 0; max-width: 420px; color: var(--text-dim); font-size: 12px; }
-.scenario-picker select { background: var(--panel); color: var(--text); border: 1px solid var(--border); padding: 7px; }
-.scenario-picker small { color: var(--text-muted); }
 
 .update-banner {
   display: flex;
