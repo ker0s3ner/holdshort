@@ -1,11 +1,12 @@
 import type { ControllerRole } from "./types";
+import type { ViewMode } from "./viewModes";
 
 export interface Profile {
   id: string;
   name: string;
   icao: string;
   role: ControllerRole;
-  displayType: "smr" | "tower";
+  displayType: ViewMode;
 }
 
 const STORAGE_KEY = "holdshort.profiles";
@@ -55,7 +56,7 @@ export function importProfile(json: string): Profile {
     name: String(data.name ?? "Imported profile"),
     icao: String(data.icao ?? ""),
     role: (data.role ?? "ground") as ControllerRole,
-    displayType: data.displayType === "tower" ? "tower" : "smr",
+    displayType: ["smr", "tower", "terminal", "enroute"].includes(data.displayType) ? data.displayType : "smr",
   };
   saveProfiles([...loadProfiles(), profile]);
   return profile;

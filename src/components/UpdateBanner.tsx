@@ -12,8 +12,9 @@ export function UpdateBanner() {
   const [update, setUpdate] = useState<Update | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const checkForUpdates = () => {
     setStatus("checking");
+    setError(null);
     check()
       .then((found) => {
         if (found) {
@@ -24,9 +25,13 @@ export function UpdateBanner() {
         }
       })
       .catch((e) => {
-        setError(String(e));
+        setError(e instanceof Error ? e.message : String(e));
         setStatus("error");
       });
+  };
+
+  useEffect(() => {
+    checkForUpdates();
   }, []);
 
   const install = async () => {
@@ -59,7 +64,12 @@ export function UpdateBanner() {
     return <div className="update-banner">Installing update, app will relaunch…</div>;
   }
   if (status === "error" && error) {
-    return <div className="update-banner error">Update check failed: {error}</div>;
+    return (
+      <div className="update-banner error">
+        <span>Update check failed: {error}</span>
+        <button onClick={checkForUpdates}>Retry</button>
+      </div>
+    );
   }
   return null;
 }

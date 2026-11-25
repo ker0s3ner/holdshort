@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import type { AirportSummary, ScenarioSummary } from "../types";
+import type { AirportSummary } from "../types";
 import type { Profile } from "../profiles";
 import {
   deleteProfile,
@@ -8,22 +8,21 @@ import {
   importProfile,
   loadProfiles,
 } from "../profiles";
+import { VIEW_LABELS } from "../viewModes";
 
 interface Props {
   airports: AirportSummary[];
-  onStart: (profile: Profile, scenarioId?: string) => void;
+  onStart: (profile: Profile) => void;
   onNewProfile: () => void;
   onOpenSettings: () => void;
   onOpenManageAirports: () => void;
-  scenarios: ScenarioSummary[];
 }
 
 /** The app's front door: a list of saved profiles (airport + position +
  * display type), the same pattern CRC's Profiles window uses. The airport
  * picker itself lives in the "New Profile" dialog, not here. */
-export function Launcher({ airports, onStart, onNewProfile, onOpenSettings, onOpenManageAirports, scenarios }: Props) {
+export function Launcher({ airports, onStart, onNewProfile, onOpenSettings, onOpenManageAirports }: Props) {
   const [profiles, setProfiles] = useState<Profile[]>(() => loadProfiles());
-  const [scenarioId, setScenarioId] = useState("free-play");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const refresh = () => setProfiles(loadProfiles());
@@ -61,11 +60,11 @@ export function Launcher({ airports, onStart, onNewProfile, onOpenSettings, onOp
           )}
           {profiles.map((p) => (
             <div key={p.id} className="profile-row">
-                <button className="profile-row-main" onClick={() => onStart(p, scenarioId)}>
+                <button className="profile-row-main" onClick={() => onStart(p)}>
                 <span className="profile-name">{p.name}</span>
                 <span className="profile-meta">
                   {p.icao} · {nameFor(p.icao)} · {p.role.toUpperCase()} ·{" "}
-                  {p.displayType === "tower" ? "TOWER CAB" : "SMR"}
+                  {VIEW_LABELS[p.displayType]}
                 </span>
               </button>
               <div className="profile-row-actions">
@@ -100,14 +99,6 @@ export function Launcher({ airports, onStart, onNewProfile, onOpenSettings, onOp
             </div>
           ))}
         </div>
-
-        <label className="scenario-picker">
-          <span>Training scenario</span>
-          <select value={scenarioId} onChange={(event) => setScenarioId(event.target.value)}>
-            {scenarios.map((scenario) => <option value={scenario.id} key={scenario.id}>{scenario.name}</option>)}
-          </select>
-          <small>{scenarios.find((scenario) => scenario.id === scenarioId)?.description}</small>
-        </label>
 
         <div className="profiles-footer">
           <button onClick={onNewProfile}>New Profile…</button>

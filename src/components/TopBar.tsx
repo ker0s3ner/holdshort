@@ -16,8 +16,9 @@ import {
 import { getAtisLetter } from "../atisSettings";
 import { StationSelectModal } from "./StationSelectModal";
 import { AtisModal } from "./AtisModal";
+import type { ViewMode } from "../viewModes";
+import { VIEW_LABELS } from "../viewModes";
 
-type ViewMode = "smr" | "tower";
 
 interface Props {
   airport: AirportData;
@@ -150,8 +151,7 @@ export function TopBar({
             📡
           </button>
           <span className="tb-position">
-            {airport.icao}_{role.toUpperCase()} [
-            {role === "approach" ? "APP" : viewMode === "smr" ? "SMR" : "TWR"}]
+            {airport.icao}_{role.toUpperCase()} [{VIEW_LABELS[viewMode]}]
           </span>
           <span className="tb-freq">{frequencyFor(airport.icao, role)}</span>
           <button className="tb-menu-trigger" onClick={() => setAtisOpen(true)}>

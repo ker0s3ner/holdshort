@@ -4,6 +4,7 @@ import { listen } from "@tauri-apps/api/event";
 import { SurfaceDisplay } from "./components/SurfaceDisplay";
 import { TowerCabView } from "./components/TowerCabView";
 import { ApproachView } from "./components/ApproachView";
+import { CenterView } from "./components/CenterView";
 import { ScopeDCB } from "./components/ScopeDCB";
 import { ScopeCommandLine } from "./components/ScopeCommandLine";
 import { ControllerMessages } from "./components/ControllerMessages";
@@ -28,6 +29,7 @@ import { AVAILABLE_PLUGINS, isPluginEnabled } from "./pluginSettings";
 import { trackHandoffs, type HandoffEvent } from "./handoffTracking";
 import { receiveMessage, composeHandoffCoordination } from "./controllerMessaging";
 import type { ScopeKind } from "./scopeDisplay";
+import { defaultViewForRole, type ViewMode, viewsForRole } from "./viewModes";
 import type { Profile } from "./profiles";
 import type {
   AircraftSnapshot,
@@ -37,15 +39,12 @@ import type {
   ControllerRole,
   SimEvent,
   SimTick,
-  ScenarioSummary,
 } from "./types";
 import "./App.css";
 
 applyStoredTheme();
 
 type Screen = "setup" | "launcher" | "session";
-type ViewMode = "smr" | "tower";
-
 const SETUP_DONE_KEY = "holdshort.setupComplete";
 
 function App() {
@@ -53,11 +52,9 @@ function App() {
     localStorage.getItem(SETUP_DONE_KEY) === "true" ? "launcher" : "setup"
   );
   const [airports, setAirports] = useState<AirportSummary[]>([]);
-  const [scenarios, setScenarios] = useState<ScenarioSummary[]>([]);
   const [airportsLoading, setAirportsLoading] = useState(true);
   const [sessionLoading, setSessionLoading] = useState(false);
   const [role, setRole] = useState<ControllerRole>("ground");
-  const [scenarioId, setScenarioId] = useState("free-play");
   const [airport, setAirport] = useState<AirportData | null>(null);
   const [aircraft, setAircraft] = useState<AircraftSnapshot[]>([]);
   const [clockS, setClockS] = useState(0);
@@ -101,8 +98,8 @@ function App() {
   }, [aircraft, role]);
 
   useEffect(() => {
-    Promise.all([invoke<AirportSummary[]>("list_installed"), invoke<ScenarioSummary[]>("list_scenarios")])
-      .then(([installed, available]) => { setAirports(installed); setScenarios(available); })
+    invoke<AirportSummary[]>("list_installed")
+      .then((installed) => setAirports(installed))
       .catch((e) => setError(String(e)))
       .finally(() => setAirportsLoading(false));
   }, [installedVersion]);
@@ -138,21 +135,20 @@ function App() {
     };
   }, [screen]);
 
-  const startProfile = useCallback((profile: Profile, scenarioId = "free-play") => {
+  const startProfile = useCallback((profile: Profile) => {
     setSessionLoading(true);
-    invoke("start_session", { icao: profile.icao, role: profile.role, scenarioId })
+    invoke("start_session", { icao: profile.icao, role: profile.role })
       .then(() => invoke<AirportData>("get_airport"))
       .then((data) => {
         setAirport(data);
         setRole(profile.role);
-        setScenarioId(scenarioId);
         setSelectedCallsign(null);
         setReplay([]);
         setReplayIndex(null);
         setTrainingActions([]);
         setTrainingEvents([]);
         setPaused(false);
-        setViewMode(profile.displayType);
+        setViewMode(viewsForRole(profile.role).includes(profile.displayType) ? profile.displayType : defaultViewForRole(profile.role));
         setScreen("session");
       })
       .catch((e) => setError(String(e)))
@@ -188,12 +184,12 @@ function App() {
    * SMR/Tower Cab view mode rather than requiring a whole new profile. */
   const switchStation = useCallback((icao: string, newRole: ControllerRole) => {
     setSessionLoading(true);
-    invoke("start_session", { icao, role: newRole, scenarioId: "free-play" })
+    invoke("start_session", { icao, role: newRole })
       .then(() => invoke<AirportData>("get_airport"))
       .then((data) => {
         setAirport(data);
         setRole(newRole);
-        setScenarioId("free-play");
+        setViewMode((current) => viewsForRole(newRole).includes(current) ? current : defaultViewForRole(newRole));
         setSelectedCallsign(null);
       })
       .catch((e) => setError(String(e)))
@@ -242,7 +238,6 @@ function App() {
         <Launcher
           key={profilesVersion}
           airports={airports}
-          scenarios={scenarios}
           onStart={startProfile}
           onNewProfile={() => setNewProfileOpen(true)}
           onOpenSettings={() => setSettingsOpen(true)}
@@ -293,7 +288,9 @@ function App() {
 
   // Which scope the DCB and command line are driving this session.
   const scopeKind: ScopeKind =
-    role === "approach" ? "approach" : viewMode === "smr" ? "smr" : "tower";
+    role === "approach" || role === "center" || viewMode === "terminal" || viewMode === "enroute"
+      ? "approach"
+      : viewMode === "smr" ? "smr" : "tower";
 
   return (
     <div className="app-shell">
@@ -330,7 +327,16 @@ function App() {
             onOpenMessages={() => setMessagesOpen(true)}
           />
           <div className="scope-canvas">
-            {role === "approach" ? (
+            {role === "center" || viewMode === "enroute" ? (
+              <CenterView
+                airport={airport}
+                aircraft={displayedAircraft}
+                role={role}
+                selectedCallsign={selectedCallsign}
+                onSelectAircraft={setSelectedCallsign}
+                recentHandoffs={handoffsRef.current}
+              />
+            ) : role === "approach" || viewMode === "terminal" ? (
               <ApproachView
                 airport={airport}
                 aircraft={displayedAircraft}
@@ -387,7 +393,7 @@ function App() {
       {messagesOpen && (
         <ControllerMessages role={role} onClose={() => setMessagesOpen(false)} />
       )}
-      {trainingOpen && <TrainingPanel events={trainingEvents} airport={airport} role={role} scenarioId={scenarioId} durationS={clockS} actions={trainingActions} checkpoints={replay} replayIndex={replayIndex} onReplayIndex={setReplayIndex} debrief={exitAfterDebrief} onClose={() => { if (exitAfterDebrief) leaveSession(); else setTrainingOpen(false); }} />}
+      {trainingOpen && <TrainingPanel events={trainingEvents} airport={airport} role={role} scenarioId="free-play" durationS={clockS} actions={trainingActions} checkpoints={replay} replayIndex={replayIndex} onReplayIndex={setReplayIndex} debrief={exitAfterDebrief} onClose={() => { if (exitAfterDebrief) leaveSession(); else setTrainingOpen(false); }} />}
       {worldMapOpen && isPluginEnabled("worldmap") && (
         <PluginHost
           title="World Traffic Map"

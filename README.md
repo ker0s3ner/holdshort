@@ -9,10 +9,10 @@ Every position the human controller is not working runs on its own AI timer (pus
 ## Features
 
 - **Positions.** Delivery, Ground, Tower, Approach and Center. Legacy Ramp profiles remain loadable as a compatibility alias. On launch you pick an airport and a position.
-- **Three views.** A Surface Movement Radar (SMR) plan display, a Tower Cab view over Esri satellite imagery with a visibility ring, and an Approach radar scope with range rings and datablocks.
+- **Station-dependent views.** Delivery/Ground use SMR or Tower Cab, Tower uses Tower Cab or SMR, Approach uses Terminal Radar or Tower Cab, and Center uses the wide-area Center Radar view.
 - **Scope tooling.** A scope command line, DCB, datablocks, handoff tracking, point-outs and controller messaging.
 - **Voice.** Speech-to-text on the mic (whisper.cpp through the Rust backend), a clearance/intent parser, spoken pilot readbacks and ATIS.
-- **Training.** Selectable scenarios, deterministic seeded traffic, runway/taxiway/airborne safety monitoring, pause/resume, replay checkpoints, explainable scoring and exportable debrief reports. Instructor Lab permits unsafe clearances to demonstrate consequences; normal scenarios enforce runway occupancy rules.
+- **Training.** The whole app is the training simulator: procedural traffic, runway/taxiway/airborne safety monitoring, pause/resume, replay checkpoints, explainable scoring and exportable debrief reports. There is no separate scenario picker.
 - **Plugins.** A read-only plugin SDK: plugins run in a sandboxed `<iframe>` and receive a live feed of traffic, airport and theme data over `postMessage` (see `src/pluginProtocol.ts`). They cannot issue clearances.
 - **Auto-update.** Installed copies check for signed updates on launch.
 

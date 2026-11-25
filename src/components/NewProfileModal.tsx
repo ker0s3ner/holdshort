@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import type { AirportSummary, ControllerRole } from "../types";
 import { regionFor } from "../airportRegions";
 import { createProfile, type Profile } from "../profiles";
+import { defaultViewForRole, VIEW_LABELS, viewsForRole, type ViewMode } from "../viewModes";
 
 interface Props {
   airports: AirportSummary[];
@@ -23,9 +24,11 @@ export function NewProfileModal({ airports, onClose, onCreated }: Props) {
     [airports, region],
   );
   const [icao, setIcao] = useState(facilitiesInRegion[0]?.icao ?? "");
-  const [displayType, setDisplayType] = useState<"smr" | "tower">("smr");
+  const [displayType, setDisplayType] = useState<ViewMode>("smr");
   const [role, setRole] = useState<ControllerRole>("ground");
   const [name, setName] = useState("");
+
+  const availableViews = viewsForRole(role);
 
   const onRegionChange = (r: string) => {
     setRegion(r);
@@ -39,6 +42,11 @@ export function NewProfileModal({ airports, onClose, onCreated }: Props) {
     if (!canCreate) return;
     const profile = createProfile({ name: name.trim(), icao, role, displayType });
     onCreated(profile);
+  };
+
+  const onRoleChange = (next: ControllerRole) => {
+    setRole(next);
+    setDisplayType(defaultViewForRole(next));
   };
 
   return (
@@ -77,16 +85,15 @@ export function NewProfileModal({ airports, onClose, onCreated }: Props) {
             Display Type
             <select
               value={displayType}
-              onChange={(e) => setDisplayType(e.target.value as "smr" | "tower")}
+              onChange={(e) => setDisplayType(e.target.value as ViewMode)}
             >
-              <option value="smr">SMR</option>
-              <option value="tower">Tower Cab</option>
+              {availableViews.map((view) => <option value={view} key={view}>{VIEW_LABELS[view]}</option>)}
             </select>
           </label>
 
           <label className="field-label">
             Position
-            <select value={role} onChange={(e) => setRole(e.target.value as ControllerRole)}>
+            <select value={role} onChange={(e) => onRoleChange(e.target.value as ControllerRole)}>
               {ROLES.map((r) => (
                 <option key={r} value={r}>
                   {r.charAt(0).toUpperCase() + r.slice(1)}

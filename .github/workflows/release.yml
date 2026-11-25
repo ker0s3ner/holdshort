@@ -8,9 +8,8 @@ on:
 jobs:
   release:
     # Apple Silicon only for now, matching the project's current scope.
-    # macos-14 currently resolves to an unavailable arm64 runner for this
-    # repository; build the Apple Silicon target from the supported Intel
-    # hosted runner instead.
+    # Build the Apple Silicon target from GitHub's supported Intel macOS
+    # runner; the older macos-13 label is no longer available.
     runs-on: macos-15-intel
     permissions:
       contents: write
