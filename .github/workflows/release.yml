@@ -11,7 +11,7 @@ jobs:
     # macos-14 currently resolves to an unavailable arm64 runner for this
     # repository; build the Apple Silicon target from the supported Intel
     # hosted runner instead.
-    runs-on: macos-13
+    runs-on: macos-15-intel
     permissions:
       contents: write
     steps:
