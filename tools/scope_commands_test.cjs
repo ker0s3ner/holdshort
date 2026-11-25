@@ -263,7 +263,7 @@ async function run(line) {
   const seatParties = cm.parties("approach");
   check(
     "parties exclude own seat + end with ALL",
-    JSON.stringify(seatParties) === JSON.stringify(["ramp", "ground", "tower", "ALL"]),
+    JSON.stringify(seatParties) === JSON.stringify(["delivery", "ground", "tower", "center", "ALL"]),
     seatParties,
   );
 

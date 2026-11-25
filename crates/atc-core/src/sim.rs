@@ -345,7 +345,12 @@ impl Simulation {
             && matches!(cmd.clearance, Clearance::ClearedToLand)
             && ac.state == AircraftState::OnApproach
             && ac.flight_plan.rule == FlightRule::Arrival;
-        if owner != active_role && !tower_landing {
+        let same_position = owner == active_role
+            || (matches!(owner, ControllerRole::Ramp | ControllerRole::Delivery)
+                && matches!(active_role, ControllerRole::Ramp | ControllerRole::Delivery))
+            || (matches!(owner, ControllerRole::Approach | ControllerRole::Center)
+                && matches!(active_role, ControllerRole::Approach | ControllerRole::Center));
+        if !same_position && !tower_landing {
             return Err(format!(
                 "{} is {:?}'s aircraft right now, not {:?}'s",
                 cmd.callsign, owner, active_role
@@ -671,7 +676,7 @@ impl Simulation {
             let Some(since) = ac.ready_since_s else { continue };
 
             match ac.state {
-                AircraftState::AtGate if active_role != ControllerRole::Ramp => {
+                AircraftState::AtGate if !matches!(active_role, ControllerRole::Ramp | ControllerRole::Delivery) => {
                     if clock - since >= AUTO_PUSHBACK_DELAY_S {
                         if let Some(ac) = self.aircraft.get_mut(cs) {
                             ac.cleared_pushback = true;
@@ -714,7 +719,7 @@ impl Simulation {
                     }
                 }
                 AircraftState::OnApproach
-                    if active_role != ControllerRole::Approach && !ac.cleared_approach =>
+                    if !matches!(active_role, ControllerRole::Approach | ControllerRole::Center) && !ac.cleared_approach =>
                 {
                     if clock - since >= AUTO_APPROACH_CLEARANCE_DELAY_S {
                         if let Some(ac) = self.aircraft.get_mut(cs) {

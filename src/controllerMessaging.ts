@@ -85,7 +85,7 @@ function threadKey(m: ControllerMessage): MessageParty {
 /** Every party the operator can coordinate with from a given seat: the
  * other three positions, then the all-call. */
 export function parties(self: ControllerRole): MessageParty[] {
-  const roles: ControllerRole[] = ["ramp", "ground", "tower", "approach"];
+  const roles: ControllerRole[] = ["delivery", "ground", "tower", "approach", "center"];
   return [...roles.filter((r) => r !== self), "ALL"];
 }
 
@@ -100,6 +100,9 @@ export function parseParty(token: string): MessageParty | null {
   switch (t) {
     case "RAMP":
       return "ramp";
+    case "DEL":
+    case "DELIVERY":
+      return "delivery";
     case "GND":
     case "GROUND":
       return "ground";
@@ -109,6 +112,9 @@ export function parseParty(token: string): MessageParty | null {
     case "APP":
     case "APPROACH":
       return "approach";
+    case "CTR":
+    case "CENTER":
+      return "center";
     default:
       return null;
   }

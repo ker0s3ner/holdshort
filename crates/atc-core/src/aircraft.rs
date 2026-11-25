@@ -23,10 +23,13 @@ pub enum WakeCategory {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ControllerRole {
+    /// Legacy alias kept for saved profiles created before Delivery existed.
     Ramp,
+    Delivery,
     Ground,
     Tower,
     Approach,
+    Center,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -54,7 +57,7 @@ impl AircraftState {
     pub fn owning_role(self) -> ControllerRole {
         match self {
             AircraftState::AtGate | AircraftState::PushingBack | AircraftState::Parked => {
-                ControllerRole::Ramp
+                ControllerRole::Delivery
             }
             AircraftState::ReadyForTaxi
             | AircraftState::TaxiingToRunway
@@ -65,7 +68,8 @@ impl AircraftState {
             | AircraftState::LandingRollout => ControllerRole::Tower,
             // Vectoring an arrival down final, or a departure climbing out,
             // is Approach's job in a real facility, not Tower's.
-            AircraftState::OnApproach | AircraftState::Departed => ControllerRole::Approach,
+            AircraftState::OnApproach => ControllerRole::Approach,
+            AircraftState::Departed => ControllerRole::Center,
         }
     }
 }

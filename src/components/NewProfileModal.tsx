@@ -9,7 +9,7 @@ interface Props {
   onCreated: (profile: Profile) => void;
 }
 
-const ROLES: ControllerRole[] = ["ramp", "ground", "tower", "approach"];
+const ROLES: ControllerRole[] = ["delivery", "ground", "tower", "approach", "center"];
 
 export function NewProfileModal({ airports, onClose, onCreated }: Props) {
   const regions = useMemo(() => {

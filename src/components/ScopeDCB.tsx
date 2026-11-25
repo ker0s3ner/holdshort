@@ -356,7 +356,7 @@ export function ScopeDCB({ scope, role, selectedCallsign, onOpenMessages }: Prop
           >
             Quick Look off
           </button>
-          {(["ramp", "ground", "tower", "approach"] as ControllerRole[])
+          {(["delivery", "ground", "tower", "approach", "center"] as ControllerRole[])
             .filter((r) => r !== role)
             .map((r) => (
               <button
@@ -379,7 +379,7 @@ export function ScopeDCB({ scope, role, selectedCallsign, onOpenMessages }: Prop
           }
         >
           <span className="dcb-menu-hint">Point out to…</span>
-          {(["ramp", "ground", "tower", "approach"] as ControllerRole[]).map((r) => (
+          {(["delivery", "ground", "tower", "approach", "center"] as ControllerRole[]).map((r) => (
             <button className="dcb-menu-item" key={r} onClick={() => doPointOut(r)}>
               {roleLabel(r)}
             </button>

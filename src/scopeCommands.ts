@@ -46,6 +46,9 @@ function parseRole(token: string): ControllerRole | null {
   switch (token) {
     case "RAMP":
       return "ramp";
+    case "DEL":
+    case "DELIVERY":
+      return "delivery";
     case "GND":
     case "GROUND":
       return "ground";
@@ -55,6 +58,9 @@ function parseRole(token: string): ControllerRole | null {
     case "APP":
     case "APPROACH":
       return "approach";
+    case "CTR":
+    case "CENTER":
+      return "center";
     default:
       return null;
   }

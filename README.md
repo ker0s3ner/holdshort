@@ -8,7 +8,7 @@ Every position the human controller is not working runs on its own AI timer (pus
 
 ## Features
 
-- **Positions.** Ramp, Ground, Tower and Approach. On launch you pick an airport and a position.
+- **Positions.** Delivery, Ground, Tower, Approach and Center. Legacy Ramp profiles remain loadable as a compatibility alias. On launch you pick an airport and a position.
 - **Three views.** A Surface Movement Radar (SMR) plan display, a Tower Cab view over Esri satellite imagery with a visibility ring, and an Approach radar scope with range rings and datablocks.
 - **Scope tooling.** A scope command line, DCB, datablocks, handoff tracking, point-outs and controller messaging.
 - **Voice.** Speech-to-text on the mic (whisper.cpp through the Rust backend), a clearance/intent parser, spoken pilot readbacks and ATIS.
@@ -18,7 +18,7 @@ Every position the human controller is not working runs on its own AI timer (pus
 
 ## Airports
 
-Only KBUR ships inside the app. Every other airport is downloaded on demand from the catalog at `crates/atc-core/data/catalog.json` (48 airports, mostly the UK, Ireland and Northern Europe/Baltics plus six US fields, Frankfurt, Istanbul, Dubai and Tokyo, including EGLL, EGKK, KJFK, KATL, KLAX, KORD, KDFW, EDDF, LTFM, OMDB and RJTT). The app fetches the catalog and per-airport files from this repository over GitHub's raw content CDN, so pushing a new airport JSON plus a catalog entry makes it installable without an app release.
+Only KBUR ships inside the app. Every other airport is downloaded on demand from the catalog at `crates/atc-core/data/catalog.json` (49 airports across 15 countries, now including Paris Charles de Gaulle/LFPG in France). The app fetches the catalog and per-airport files from this repository over GitHub's raw content CDN, so pushing a new airport JSON plus a catalog entry makes it installable without an app release.
 
 To add one, run the converter with the airport's ICAO code, then add it to `catalog.json`:
 

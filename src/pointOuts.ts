@@ -35,12 +35,16 @@ export function roleLabel(role: ControllerRole): string {
   switch (role) {
     case "ramp":
       return "RAMP";
+    case "delivery":
+      return "DELIVERY";
     case "ground":
       return "GND";
     case "tower":
       return "TWR";
     case "approach":
       return "APP";
+    case "center":
+      return "CTR";
   }
 }
 

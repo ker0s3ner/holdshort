@@ -88,6 +88,19 @@
       ]
     },
     {
+      "name": "France",
+      "iso": 250,
+      "status": "partial",
+      "airports": [
+        {
+          "icao": "LFPG",
+          "name": "Paris Charles de Gaulle Airport",
+          "lat": 49.00948192692306,
+          "lon": 2.561603117307691
+        }
+      ]
+    },
+    {
       "name": "Germany",
       "iso": 276,
       "status": "partial",

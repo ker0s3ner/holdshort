@@ -12,7 +12,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(ROOT, "crates", "atc-core", "data")
 
 ISO = {
-    "Denmark": 208, "Estonia": 233, "Finland": 246, "Germany": 276,
+    "Denmark": 208, "Estonia": 233, "Finland": 246, "France": 250, "Germany": 276,
     "Ireland": 372, "Japan": 392, "Latvia": 428, "Lithuania": 440,
     "Norway": 578, "Sweden": 752, "Turkey": 792,
     "United Arab Emirates": 784, "United Kingdom": 826, "United States": 840,

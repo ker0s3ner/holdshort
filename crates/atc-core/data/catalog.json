@@ -20,6 +20,11 @@
     "region": "Finland"
   },
   {
+    "icao": "LFPG",
+    "name": "Paris Charles de Gaulle Airport",
+    "region": "France"
+  },
+  {
     "icao": "EFTP",
     "name": "Tampere-Pirkkala Airport",
     "region": "Finland"

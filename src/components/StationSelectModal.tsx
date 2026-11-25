@@ -10,7 +10,7 @@ interface Props {
   onClose: () => void;
 }
 
-const ROLES: ControllerRole[] = ["ramp", "ground", "tower", "approach"];
+const ROLES: ControllerRole[] = ["delivery", "ground", "tower", "approach", "center"];
 
 /** CRC's own Station Select dialog lets you switch position without
  * leaving the session - this is that, scoped to what we actually have:

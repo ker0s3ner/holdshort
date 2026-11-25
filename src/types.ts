@@ -162,7 +162,7 @@ export interface ScenarioSummary {
   strict_safety: boolean;
 }
 
-export type ControllerRole = "ramp" | "ground" | "tower" | "approach";
+export type ControllerRole = "ramp" | "delivery" | "ground" | "tower" | "approach" | "center";
 
 export type Clearance =
   | "EngineStartApproved"

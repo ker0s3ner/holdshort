@@ -33,6 +33,12 @@ const BUTTONS_BY_ROLE: Record<ControllerRole, ClearanceButton[]> = {
     { label: "Hold Position", clearance: "HoldPosition" },
     { label: "Cancel Clearance", clearance: "CancelClearance" },
   ],
+  delivery: [
+    { label: "Engine Start Approved", clearance: "EngineStartApproved" },
+    { label: "Pushback Approved", clearance: "PushbackApproved" },
+    { label: "Hold Position", clearance: "HoldPosition" },
+    { label: "Cancel Clearance", clearance: "CancelClearance" },
+  ],
   ground: [
     { label: "Taxi to Runway", clearance: { TaxiToRunway: { via_hold_short: null } } },
     { label: "Resume Taxi", clearance: "ResumeTaxi" },
@@ -49,6 +55,10 @@ const BUTTONS_BY_ROLE: Record<ControllerRole, ClearanceButton[]> = {
     { label: "Cleared Approach", clearance: "ClearedApproach" },
     { label: "Go Around", clearance: "GoAround" },
   ],
+  center: [
+    { label: "Cleared Approach", clearance: "ClearedApproach" },
+    { label: "Go Around", clearance: "GoAround" },
+  ],
 };
 
 /** OnApproach/Departed aircraft are Approach's own, same role the Held
@@ -57,9 +67,11 @@ const APPROACH_STATES = new Set(["OnApproach", "Departed"]);
 
 const ADJACENT_POSITIONS: Record<ControllerRole, (keyof typeof BUTTONS_BY_ROLE)[]> = {
   ramp: ["ground"],
+  delivery: ["ground"],
   ground: ["ramp", "tower"],
   tower: ["ground", "approach"],
   approach: ["tower"],
+  center: ["approach"],
 };
 
 const HELD_STATES = new Set(["ReadyForTaxi", "HoldingShort", "LinedUp"]);
